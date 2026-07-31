@@ -19,8 +19,14 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
 
     // MARK: Requests
 
-    private func request(_ method: String, _ path: String, json body: [String: Any]? = nil) -> URLRequest {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+    private func request(
+        _ method: String, _ path: String, query: [URLQueryItem]? = nil, json body: [String: Any]? = nil
+    ) -> URLRequest {
+        var url = baseURL.appendingPathComponent(path)
+        if let query {
+            url.append(queryItems: query)
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let body {
@@ -195,6 +201,80 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         }
         let wire = try Self.decoder.decode(WireTaskList.self, from: result.stdout)
         return wire.tasks.map { PlatformTask(name: $0.name, startedAt: $0.started_at, expiresAt: $0.expires_at) }
+    }
+
+    /// The NDJSON progress event shape streamed by service upserts (and,
+    /// later, checkpoint operations).
+    private struct WireStreamEvent: Decodable {
+        var type: String
+        var data: String?
+
+        static func decode(_ data: Data) -> WireStreamEvent? {
+            try? JSONDecoder().decode(WireStreamEvent.self, from: data)
+        }
+    }
+
+    /// Streams NDJSON lines from a request as decoded events.
+    private func streamNDJSON<E: Sendable>(
+        _ request: URLRequest, decode: @escaping @Sendable (Data) -> E?
+    ) async throws -> AsyncThrowingStream<E, Error> {
+        let (bytes, response) = try await session.bytes(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw PlatformError.api("not an HTTP response")
+        }
+        switch http.statusCode {
+        case 200..<300: break
+        case 401, 403: throw PlatformError.unauthorized
+        default: throw PlatformError.api("HTTP \(http.statusCode)")
+        }
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await line in bytes.lines {
+                        guard !line.isEmpty, let event = decode(Data(line.utf8)) else { continue }
+                        continuation.yield(event)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    public func upsertService(on sprite: String, named name: String, definition: ServiceDefinition)
+        async throws -> AsyncThrowingStream<ServiceUpsertEvent, Error>
+    {
+        var body: [String: Any] = ["cmd": definition.cmd, "args": definition.args]
+        if let env = definition.env { body["env"] = env }
+        if let dir = definition.dir { body["dir"] = dir }
+        if let needs = definition.needs { body["needs"] = needs }
+        if let port = definition.httpPort { body["http_port"] = port }
+        return try await streamNDJSON(
+            request("PUT", "/v1/sprites/\(sprite)/services/\(name)", json: body)
+        ) { data in
+            WireStreamEvent.decode(data).map { ServiceUpsertEvent(type: $0.type, message: $0.data) }
+        }
+    }
+
+    public func startService(on sprite: String, named name: String) async throws {
+        _ = try await send(request("POST", "/v1/sprites/\(sprite)/services/\(name)/start"))
+    }
+
+    public func stopService(on sprite: String, named name: String) async throws {
+        _ = try await send(request("POST", "/v1/sprites/\(sprite)/services/\(name)/stop"))
+    }
+
+    public func deleteService(on sprite: String, named name: String) async throws {
+        _ = try await send(request("DELETE", "/v1/sprites/\(sprite)/services/\(name)"))
+    }
+
+    public func serviceLogs(on sprite: String, named name: String, lines: Int) async throws -> String {
+        let data = try await send(request(
+            "GET", "/v1/sprites/\(sprite)/services/\(name)/logs",
+            query: [URLQueryItem(name: "lines", value: String(lines))]))
+        return String(decoding: data, as: UTF8.self)
     }
 
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {

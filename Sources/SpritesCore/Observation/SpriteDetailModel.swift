@@ -78,6 +78,39 @@ public final class SpriteDetailModel {
         await refresh()
     }
 
+    // MARK: Service lifecycle (deep; the screen re-observes after each)
+
+    public func startService(_ name: String) async {
+        await serviceOperation { try await $0.startService(on: $1, named: name) }
+    }
+
+    public func stopService(_ name: String) async {
+        await serviceOperation { try await $0.stopService(on: $1, named: name) }
+    }
+
+    /// The platform's documented restart endpoint does not exist (observed
+    /// 404), so restart is an explicit stop followed by start.
+    public func restartService(_ name: String) async {
+        await serviceOperation {
+            try await $0.stopService(on: $1, named: name)
+            try await $0.startService(on: $1, named: name)
+        }
+    }
+
+    public func deleteService(_ name: String) async {
+        await serviceOperation { try await $0.deleteService(on: $1, named: name) }
+    }
+
+    private func serviceOperation(_ operation: (SpritesPlatform, String) async throws -> Void) async {
+        do {
+            try await operation(platform, spriteName)
+        } catch {
+            lastError = error
+            session?.handle(error)
+        }
+        await deepObserve()
+    }
+
     private func deepObserve() async {
         do {
             services = try await platform.services(on: spriteName)

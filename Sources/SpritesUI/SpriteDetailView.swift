@@ -4,6 +4,7 @@ import SpritesCore
 #if os(iOS)
 public struct SpriteDetailView: View {
     @State private var model: SpriteDetailModel
+    @State private var showingCreateService = false
     private let onDeleted: () -> Void
     @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
@@ -48,6 +49,11 @@ public struct SpriteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.refresh() }
         .refreshable { await model.refresh() }
+        .sheet(isPresented: $showingCreateService) {
+            CreateServiceView(platform: platform, spriteName: model.spriteName) {
+                Task { await model.refresh() }
+            }
+        }
         .confirmationDialog(
             "Delete \(model.spriteName)?", isPresented: $confirmingDelete, titleVisibility: .visible
         ) {
@@ -108,19 +114,23 @@ public struct SpriteDetailView: View {
             }
         }
 
-        Section("Services") {
+        Section {
             if let services = model.services, !services.isEmpty {
                 ForEach(services) { service in
-                    VStack(alignment: .leading) {
-                        Text(service.name)
-                        Text(([service.cmd] + service.args).joined(separator: " "))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                        if let state = service.state {
-                            Text(state.status + (state.pid.map { " (pid \($0))" } ?? ""))
-                                .font(.caption)
+                    NavigationLink {
+                        ServiceDetailView(model: model, serviceName: service.name, platform: platform)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(service.name)
+                            Text(([service.cmd] + service.args).joined(separator: " "))
+                                .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            if let state = service.state {
+                                Text(state.status + (state.pid.map { " (pid \($0))" } ?? ""))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -128,6 +138,13 @@ public struct SpriteDetailView: View {
                 Text("No services")
                     .foregroundStyle(.secondary)
             }
+            Button {
+                showingCreateService = true
+            } label: {
+                Label("New service", systemImage: "plus")
+            }
+        } header: {
+            Text("Services")
         }
 
         Section("Tasks") {

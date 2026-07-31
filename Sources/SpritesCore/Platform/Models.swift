@@ -81,6 +81,40 @@ public struct Service: Sendable, Equatable, Identifiable {
     }
 }
 
+/// What the create-service Flow submits: maps 1:1 to the platform service
+/// definition. Arguments are always an array, never a shell string.
+public struct ServiceDefinition: Sendable, Equatable {
+    public var cmd: String
+    public var args: [String]
+    public var env: [String: String]?
+    public var dir: String?
+    public var needs: [String]?
+    public var httpPort: Int?
+
+    public init(
+        cmd: String, args: [String] = [], env: [String: String]? = nil, dir: String? = nil,
+        needs: [String]? = nil, httpPort: Int? = nil
+    ) {
+        self.cmd = cmd
+        self.args = args
+        self.env = env
+        self.dir = dir
+        self.needs = needs
+        self.httpPort = httpPort
+    }
+}
+
+/// One NDJSON progress event streamed by a service upsert.
+public struct ServiceUpsertEvent: Sendable, Equatable {
+    public var type: String
+    public var message: String?
+
+    public init(type: String, message: String? = nil) {
+        self.type = type
+        self.message = message
+    }
+}
+
 /// A live platform task holding a Sprite awake (Keep-alive, Heartbeat, ...).
 public struct PlatformTask: Sendable, Equatable, Identifiable {
     public var name: String

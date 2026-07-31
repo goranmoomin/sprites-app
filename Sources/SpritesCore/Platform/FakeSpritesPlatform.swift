@@ -8,6 +8,7 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     private var sprites: [String: SpriteMetadata] = [:]
     private var order: [String] = []
     private var services: [String: [Service]] = [:]
+    private var serviceLogs: [String: [String: String]] = [:]
     private var tasks: [String: [PlatformTask]] = [:]
     private var checkpointLists: [String: [Checkpoint]] = [:]
 
@@ -71,6 +72,10 @@ public actor FakeSpritesPlatform: SpritesPlatform {
 
     public func setCheckpoint(on sprite: String, _ checkpoint: Checkpoint) {
         checkpointLists[sprite, default: []].append(checkpoint)
+    }
+
+    public func setServiceLogs(on sprite: String, service: String, _ logs: String) {
+        serviceLogs[sprite, default: [:]][service] = logs
     }
 
     /// Makes wake() block until releaseWakes(), to observe "waking..." states.
@@ -138,6 +143,51 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     public func checkpoints(on sprite: String) async throws -> [Checkpoint] {
         _ = try deepTouch(sprite)
         return checkpointLists[sprite] ?? []
+    }
+
+    public func upsertService(on sprite: String, named name: String, definition: ServiceDefinition)
+        async throws -> AsyncThrowingStream<ServiceUpsertEvent, Error>
+    {
+        _ = try deepTouch(sprite)
+        setService(
+            on: sprite,
+            Service(
+                name: name, cmd: definition.cmd, args: definition.args, dir: definition.dir,
+                env: definition.env, httpPort: definition.httpPort, needs: definition.needs,
+                state: ServiceState(status: "running", pid: 1000 + (services[sprite]?.count ?? 0))))
+        let (stream, continuation) = AsyncThrowingStream.makeStream(of: ServiceUpsertEvent.self)
+        continuation.yield(ServiceUpsertEvent(type: "started", message: "starting \(name)"))
+        continuation.yield(ServiceUpsertEvent(type: "complete", message: "service \(name) running"))
+        continuation.finish()
+        return stream
+    }
+
+    private func setServiceStatus(on sprite: String, named name: String, _ status: String) throws {
+        guard let index = services[sprite]?.firstIndex(where: { $0.name == name }) else {
+            throw PlatformError.notFound
+        }
+        services[sprite]![index].state = ServiceState(
+            status: status, pid: status == "running" ? 1234 : nil)
+    }
+
+    public func startService(on sprite: String, named name: String) async throws {
+        _ = try deepTouch(sprite)
+        try setServiceStatus(on: sprite, named: name, "running")
+    }
+
+    public func stopService(on sprite: String, named name: String) async throws {
+        _ = try deepTouch(sprite)
+        try setServiceStatus(on: sprite, named: name, "stopped")
+    }
+
+    public func deleteService(on sprite: String, named name: String) async throws {
+        _ = try deepTouch(sprite)
+        services[sprite]?.removeAll { $0.name == name }
+    }
+
+    public func serviceLogs(on sprite: String, named name: String, lines: Int) async throws -> String {
+        _ = try deepTouch(sprite)
+        return serviceLogs[sprite]?[name] ?? ""
     }
 
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {

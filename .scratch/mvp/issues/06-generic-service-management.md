@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Sprite detail with deep observation.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Create-service form maps 1:1 to the platform service definition (cmd, args, http_port, env, dir, needs)
 - [ ] Upsert progress (started/complete/error events) is shown live
@@ -13,3 +13,10 @@
 - [ ] Recent logs are viewable as text
 - [ ] Service deletion works (endpoint verified empirically; undocumented but functional)
 - [ ] No shell-string command input anywhere
+
+## Comments
+
+Restart is implemented as stop+start (the documented restart endpoint
+returned 404 in the apptest-probe2 run; see findings.md). Stop/start
+endpoint shapes are taken from the official JS SDK; live verification of
+stop/start against a real sprite is still pending.

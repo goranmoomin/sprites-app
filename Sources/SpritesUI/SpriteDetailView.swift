@@ -8,10 +8,13 @@ public struct SpriteDetailView: View {
     @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
 
+    private let platform: SpritesPlatform
+
     public init(
         platform: SpritesPlatform, spriteName: String, session: Session?,
         onDeleted: @escaping () -> Void = {}
     ) {
+        self.platform = platform
         self.onDeleted = onDeleted
         _model = State(initialValue: SpriteDetailModel(
             platform: platform, spriteName: spriteName, session: session))
@@ -97,6 +100,14 @@ public struct SpriteDetailView: View {
 
     @ViewBuilder
     private var deepSections: some View {
+        Section("Actions") {
+            NavigationLink {
+                ExecActionView(platform: platform, spriteName: model.spriteName)
+            } label: {
+                Label("Run command", systemImage: "terminal")
+            }
+        }
+
         Section("Services") {
             if let services = model.services, !services.isEmpty {
                 ForEach(services) { service in

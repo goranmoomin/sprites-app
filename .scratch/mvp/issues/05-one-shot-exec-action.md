@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Sprite detail with deep observation.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] User enters a command, sees streamed/captured output as text with exit status
 - [ ] stderr is visually distinguished from stdout

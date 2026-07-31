@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Sprite detail with deep observation.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Recognition is by command match on cmd/args; service names are ignored
 - [ ] Multiple instances of one integration's services are all recognized

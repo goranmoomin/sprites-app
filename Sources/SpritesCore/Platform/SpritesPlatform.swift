@@ -32,4 +32,9 @@ public protocol SpritesPlatform: Sendable {
 
     // MARK: Exec (deep; wakes a cold Sprite)
     func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession
+
+    // MARK: In-sprite files (deep; wakes a cold Sprite)
+    func fileExists(on sprite: String, path: String) async throws -> Bool
+    func readFile(on sprite: String, path: String) async throws -> String?
+    func writeFile(on sprite: String, path: String, content: String) async throws
 }

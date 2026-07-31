@@ -104,9 +104,32 @@ public struct SpriteDetailView: View {
         }
     }
 
+    @Environment(\.openURL) private var openURL
+
     @ViewBuilder
     private var deepSections: some View {
+        if let lines = model.integrationLines, !lines.isEmpty {
+            Section("Integrations") {
+                ForEach(lines) { line in
+                    LabeledContent(line.title) {
+                        HStack {
+                            Text(line.summary)
+                            Image(systemName: line.isReady ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(line.isReady ? Color.green : Color.secondary)
+                        }
+                    }
+                }
+            }
+        }
+
         Section("Actions") {
+            ForEach(model.actions ?? []) { action in
+                Button(action.title) {
+                    if let url = action.url {
+                        openURL(url)
+                    }
+                }
+            }
             NavigationLink {
                 ExecActionView(platform: platform, spriteName: model.spriteName)
             } label: {

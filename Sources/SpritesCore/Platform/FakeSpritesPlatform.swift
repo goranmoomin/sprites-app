@@ -9,6 +9,7 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     private var order: [String] = []
     private var services: [String: [Service]] = [:]
     private var serviceLogs: [String: [String: String]] = [:]
+    private var files: [String: [String: String]] = [:]
     private var tasks: [String: [PlatformTask]] = [:]
     private var checkpointLists: [String: [Checkpoint]] = [:]
 
@@ -76,6 +77,18 @@ public actor FakeSpritesPlatform: SpritesPlatform {
 
     public func setServiceLogs(on sprite: String, service: String, _ logs: String) {
         serviceLogs[sprite, default: [:]][service] = logs
+    }
+
+    public func setFile(on sprite: String, path: String, content: String) {
+        files[sprite, default: [:]][path] = content
+    }
+
+    public func removeFile(on sprite: String, path: String) {
+        files[sprite]?.removeValue(forKey: path)
+    }
+
+    public func fileContents(on sprite: String, path: String) -> String? {
+        files[sprite]?[path]
     }
 
     /// Makes wake() block until releaseWakes(), to observe "waking..." states.
@@ -188,6 +201,21 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     public func serviceLogs(on sprite: String, named name: String, lines: Int) async throws -> String {
         _ = try deepTouch(sprite)
         return serviceLogs[sprite]?[name] ?? ""
+    }
+
+    public func fileExists(on sprite: String, path: String) async throws -> Bool {
+        _ = try deepTouch(sprite)
+        return files[sprite]?[path] != nil
+    }
+
+    public func readFile(on sprite: String, path: String) async throws -> String? {
+        _ = try deepTouch(sprite)
+        return files[sprite]?[path]
+    }
+
+    public func writeFile(on sprite: String, path: String, content: String) async throws {
+        _ = try deepTouch(sprite)
+        files[sprite, default: [:]][path] = content
     }
 
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {

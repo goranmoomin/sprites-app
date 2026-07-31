@@ -22,13 +22,35 @@ public final class SpriteDetailModel {
     /// observation once given (ADR 0001: "or explicit wake").
     private var hasWokenForInspection = false
 
+    /// Per-integration status lines, e.g. "Claude Code: logged in".
+    public private(set) var integrationLines: [IntegrationStatusLine]?
+    /// One-tap Actions contributed by integrations.
+    public private(set) var actions: [SpriteAction]?
+
+    public struct IntegrationStatusLine: Sendable, Equatable, Identifiable {
+        public var id: String
+        public var title: String
+        public var summary: String
+        public var isReady: Bool
+    }
+
     private let platform: SpritesPlatform
     private let session: Session?
+    private let integrations: [any Integration]
 
-    public init(platform: SpritesPlatform, spriteName: String, session: Session? = nil) {
+    public init(
+        platform: SpritesPlatform, spriteName: String, session: Session? = nil,
+        integrations: [any Integration] = Integrations.all
+    ) {
         self.platform = platform
         self.spriteName = spriteName
         self.session = session
+        self.integrations = integrations
+    }
+
+    /// A Custom service: recognized by no integration; generic controls only.
+    public func isCustom(_ service: Service) -> Bool {
+        !integrations.contains { $0.recognizes(service) }
     }
 
     /// A sprite that is not running needs an explicit wake before deep
@@ -116,10 +138,27 @@ public final class SpriteDetailModel {
             services = try await platform.services(on: spriteName)
             tasks = try await platform.listTasks(on: spriteName)
             checkpoints = try await platform.checkpoints(on: spriteName)
+            try await observeIntegrations()
             lastError = nil
         } catch {
             lastError = error
             session?.handle(error)
         }
+    }
+
+    private func observeIntegrations() async throws {
+        let services = services ?? []
+        var lines: [IntegrationStatusLine] = []
+        var actions: [SpriteAction] = []
+        for integration in integrations {
+            let status = try await integration.observeStatus(
+                on: spriteName, services: services, platform: platform)
+            lines.append(IntegrationStatusLine(
+                id: integration.id, title: integration.displayName,
+                summary: status.summary, isReady: status.isReady))
+            actions.append(contentsOf: integration.actions(services: services, metadata: metadata))
+        }
+        integrationLines = lines
+        self.actions = actions
     }
 }

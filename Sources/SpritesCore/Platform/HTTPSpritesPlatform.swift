@@ -277,6 +277,28 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         return String(decoding: data, as: UTF8.self)
     }
 
+    public func fileExists(on sprite: String, path: String) async throws -> Bool {
+        try await runCapturing(on: sprite, ["test", "-e", path]).exitCode == 0
+    }
+
+    public func readFile(on sprite: String, path: String) async throws -> String? {
+        let result = try await runCapturing(on: sprite, ["cat", path])
+        return result.exitCode == 0 ? result.stdoutText : nil
+    }
+
+    public func writeFile(on sprite: String, path: String, content: String) async throws {
+        let directory = (path as NSString).deletingLastPathComponent
+        let session = try await exec(
+            on: sprite, command: ExecCommand(["sh", "-c", "mkdir -p \"\(directory)\" && cat > \"\(path)\""]))
+        try await session.send(Data(content.utf8))
+        try await session.sendEOF()
+        for await event in session.events {
+            if case .exit(let code) = event, code != 0 {
+                throw PlatformError.api("writing \(path) failed with exit \(code)")
+            }
+        }
+    }
+
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("/v1/sprites/\(sprite)/exec"),

@@ -135,6 +135,50 @@ public final class SpriteDetailModel {
         await refresh()
     }
 
+    // MARK: Checkpoints
+
+    public private(set) var checkpointProgress: [CheckpointEvent] = []
+
+    /// Manual checkpoints (the primary list). Automatic `auto-*` checkpoints
+    /// and the Current pseudo-entry stay out of the way.
+    public var manualCheckpoints: [Checkpoint] {
+        (checkpoints ?? []).filter { !$0.isAuto && $0.id != "Current" }
+    }
+
+    public var automaticCheckpoints: [Checkpoint] {
+        (checkpoints ?? []).filter(\.isAuto)
+    }
+
+    public func createCheckpoint(comment: String) async {
+        await streamCheckpointOperation {
+            try await $0.createCheckpoint(on: $1, comment: comment)
+        }
+    }
+
+    /// Destructive; rolls back agent logins, services, and Pairing made
+    /// after the checkpoint. Afterwards the screen simply re-observes.
+    public func restoreCheckpoint(id: String) async {
+        await streamCheckpointOperation {
+            try await $0.restoreCheckpoint(on: $1, id: id)
+        }
+    }
+
+    private func streamCheckpointOperation(
+        _ operation: (SpritesPlatform, String) async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    ) async {
+        checkpointProgress = []
+        do {
+            for try await event in try await operation(platform, spriteName) {
+                checkpointProgress.append(event)
+            }
+        } catch {
+            // Active sessions dropping mid-restore is tolerated: what matters
+            // is what re-observation finds.
+            checkpointProgress.append(CheckpointEvent(type: "error", message: String(describing: error)))
+        }
+        await refresh()
+    }
+
     // MARK: Service lifecycle (deep; the screen re-observes after each)
 
     public func startService(_ name: String) async {

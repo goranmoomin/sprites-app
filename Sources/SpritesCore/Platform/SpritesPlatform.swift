@@ -28,6 +28,12 @@ public protocol SpritesPlatform: Sendable {
     func upsertTask(on sprite: String, named name: String, expiringInSeconds seconds: Int) async throws
     func deleteTask(on sprite: String, named name: String) async throws
     func checkpoints(on sprite: String) async throws -> [Checkpoint]
+    /// Creates a checkpoint, streaming the platform's NDJSON progress.
+    func createCheckpoint(on sprite: String, comment: String)
+        async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    /// Destructive restore: captures disk, not running processes.
+    func restoreCheckpoint(on sprite: String, id: String)
+        async throws -> AsyncThrowingStream<CheckpointEvent, Error>
 
     // MARK: Services (deep; wakes a cold Sprite)
     /// Creates or updates a service, streaming the platform's NDJSON progress.

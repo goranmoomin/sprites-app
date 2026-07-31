@@ -6,6 +6,8 @@ public struct SpriteDetailView: View {
     @State private var model: SpriteDetailModel
     @State private var showingCreateService = false
     @State private var activeFlow: Flow?
+    @State private var showingCreateCheckpoint = false
+    @State private var checkpointToRestore: Checkpoint?
     private let onDeleted: () -> Void
     @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
@@ -59,6 +61,24 @@ public struct SpriteDetailView: View {
             FlowRunView(flow: flow, platform: platform, sprite: model.spriteName) {
                 Task { await model.refresh() }
             }
+        }
+        .sheet(isPresented: $showingCreateCheckpoint) {
+            CreateCheckpointView(model: model)
+        }
+        .confirmationDialog(
+            "Restore \(checkpointToRestore?.id ?? "checkpoint")?",
+            isPresented: Binding(
+                get: { checkpointToRestore != nil },
+                set: { if !$0 { checkpointToRestore = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: checkpointToRestore
+        ) { checkpoint in
+            Button("Restore Checkpoint", role: .destructive) {
+                Task { await model.restoreCheckpoint(id: checkpoint.id) }
+            }
+        } message: { _ in
+            Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
         }
         .confirmationDialog(
             "Delete \(model.spriteName)?", isPresented: $confirmingDelete, titleVisibility: .visible
@@ -230,14 +250,45 @@ public struct SpriteDetailView: View {
             Text("A keep-alive is a named platform task this app holds to stop the sprite from pausing.")
         }
 
-        Section("Checkpoints") {
-            if let checkpoints = model.checkpoints, !checkpoints.isEmpty {
-                ForEach(checkpoints) { checkpoint in
-                    LabeledContent(checkpoint.id, value: checkpoint.comment ?? "")
-                }
-            } else {
+        Section {
+            if model.manualCheckpoints.isEmpty {
                 Text("No checkpoints")
                     .foregroundStyle(.secondary)
+            } else {
+                ForEach(model.manualCheckpoints) { checkpoint in
+                    LabeledContent(checkpoint.id, value: checkpoint.comment ?? "")
+                        .swipeActions {
+                            Button("Restore") {
+                                checkpointToRestore = checkpoint
+                            }
+                            .tint(.orange)
+                        }
+                }
+            }
+            Button {
+                showingCreateCheckpoint = true
+            } label: {
+                Label("New checkpoint", systemImage: "camera")
+            }
+            if !model.automaticCheckpoints.isEmpty {
+                DisclosureGroup("Automatic checkpoints") {
+                    ForEach(model.automaticCheckpoints) { checkpoint in
+                        LabeledContent(checkpoint.id, value: checkpoint.comment ?? "")
+                    }
+                }
+            }
+        } header: {
+            Text("Checkpoints")
+        } footer: {
+            Text("Swipe a checkpoint to restore it.")
+        }
+
+        if !model.checkpointProgress.isEmpty {
+            Section("Checkpoint progress") {
+                ForEach(Array(model.checkpointProgress.enumerated()), id: \.offset) { _, event in
+                    Text(event.message ?? event.type)
+                        .font(.caption.monospaced())
+                }
             }
         }
     }

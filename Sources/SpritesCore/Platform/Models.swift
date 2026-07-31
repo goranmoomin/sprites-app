@@ -130,6 +130,18 @@ public struct PlatformTask: Sendable, Equatable, Identifiable {
     }
 }
 
+/// One NDJSON progress event streamed by checkpoint create/restore:
+/// `{type: "info"|"complete", data, time}` with human-readable strings.
+public struct CheckpointEvent: Sendable, Equatable {
+    public var type: String
+    public var message: String?
+
+    public init(type: String, message: String? = nil) {
+        self.type = type
+        self.message = message
+    }
+}
+
 /// A deliberate snapshot of a Sprite's writable filesystem.
 public struct Checkpoint: Sendable, Equatable, Identifiable {
     public var id: String

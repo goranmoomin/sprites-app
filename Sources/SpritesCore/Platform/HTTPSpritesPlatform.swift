@@ -209,8 +209,8 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         return wire.tasks.map { PlatformTask(name: $0.name, startedAt: $0.started_at, expiresAt: $0.expires_at) }
     }
 
-    /// The NDJSON progress event shape streamed by service upserts (and,
-    /// later, checkpoint operations).
+    /// The NDJSON progress event shape shared by service upserts and
+    /// checkpoint create/restore.
     private struct WireStreamEvent: Decodable {
         var type: String
         var data: String?
@@ -246,6 +246,26 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    public func createCheckpoint(on sprite: String, comment: String)
+        async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    {
+        try await streamNDJSON(
+            request("POST", "/v1/sprites/\(sprite)/checkpoint", json: ["comment": comment])
+        ) { data in
+            WireStreamEvent.decode(data).map { CheckpointEvent(type: $0.type, message: $0.data) }
+        }
+    }
+
+    public func restoreCheckpoint(on sprite: String, id: String)
+        async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    {
+        try await streamNDJSON(
+            request("POST", "/v1/sprites/\(sprite)/checkpoints/\(id)/restore")
+        ) { data in
+            WireStreamEvent.decode(data).map { CheckpointEvent(type: $0.type, message: $0.data) }
         }
     }
 

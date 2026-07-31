@@ -13,6 +13,15 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     private var tasks: [String: [PlatformTask]] = [:]
     private var checkpointLists: [String: [Checkpoint]] = [:]
 
+    /// What a checkpoint captures: disk, not running processes or tasks.
+    private struct CheckpointContents {
+        var files: [String: String]
+        var services: [Service]
+        var serviceLogs: [String: String]
+    }
+
+    private var checkpointContents: [String: [String: CheckpointContents]] = [:]
+
     /// The injected clock: task expiry is evaluated against this.
     public private(set) var now = Date(timeIntervalSince1970: 1_000_000)
 
@@ -183,6 +192,40 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     public func checkpoints(on sprite: String) async throws -> [Checkpoint] {
         _ = try deepTouch(sprite)
         return checkpointLists[sprite] ?? []
+    }
+
+    public func createCheckpoint(on sprite: String, comment: String)
+        async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    {
+        _ = try deepTouch(sprite)
+        let id = "v\((checkpointLists[sprite] ?? []).filter { !$0.isAuto }.count + 1)"
+        checkpointLists[sprite, default: []].append(
+            Checkpoint(id: id, createTime: now, comment: comment, isAuto: false))
+        checkpointContents[sprite, default: [:]][id] = CheckpointContents(
+            files: files[sprite] ?? [:],
+            services: services[sprite] ?? [],
+            serviceLogs: serviceLogs[sprite] ?? [:])
+        let (stream, continuation) = AsyncThrowingStream.makeStream(of: CheckpointEvent.self)
+        continuation.yield(CheckpointEvent(type: "info", message: "Creating checkpoint..."))
+        continuation.yield(CheckpointEvent(type: "info", message: "  ID: \(id)"))
+        continuation.yield(CheckpointEvent(type: "complete", message: "Checkpoint created"))
+        continuation.finish()
+        return stream
+    }
+
+    public func restoreCheckpoint(on sprite: String, id: String)
+        async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    {
+        _ = try deepTouch(sprite)
+        guard let contents = checkpointContents[sprite]?[id] else { throw PlatformError.notFound }
+        files[sprite] = contents.files
+        services[sprite] = contents.services
+        serviceLogs[sprite] = contents.serviceLogs
+        let (stream, continuation) = AsyncThrowingStream.makeStream(of: CheckpointEvent.self)
+        continuation.yield(CheckpointEvent(type: "info", message: "Restoring \(id)..."))
+        continuation.yield(CheckpointEvent(type: "complete", message: "Restore complete"))
+        continuation.finish()
+        return stream
     }
 
     public func upsertService(on sprite: String, named name: String, definition: ServiceDefinition)

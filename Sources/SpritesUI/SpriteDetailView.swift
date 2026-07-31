@@ -5,6 +5,7 @@ import SpritesCore
 public struct SpriteDetailView: View {
     @State private var model: SpriteDetailModel
     @State private var showingCreateService = false
+    @State private var activeFlow: Flow?
     private let onDeleted: () -> Void
     @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
@@ -54,6 +55,11 @@ public struct SpriteDetailView: View {
                 Task { await model.refresh() }
             }
         }
+        .sheet(item: $activeFlow) { flow in
+            FlowRunView(flow: flow, platform: platform, sprite: model.spriteName) {
+                Task { await model.refresh() }
+            }
+        }
         .confirmationDialog(
             "Delete \(model.spriteName)?", isPresented: $confirmingDelete, titleVisibility: .visible
         ) {
@@ -68,6 +74,16 @@ public struct SpriteDetailView: View {
         } message: {
             Text("This permanently destroys its filesystem, services, and checkpoints.")
         }
+    }
+
+    /// Flows offered given the observed integration state.
+    private var availableFlows: [Flow] {
+        var flows: [Flow] = []
+        let lines = model.integrationLines ?? []
+        if lines.first(where: { $0.id == Integrations.claudeCode.id })?.isReady != true {
+            flows.append(Integrations.claudeCode.loginFlow())
+        }
+        return flows
     }
 
     private var statusSection: some View {
@@ -117,6 +133,11 @@ public struct SpriteDetailView: View {
                             Image(systemName: line.isReady ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(line.isReady ? Color.green : Color.secondary)
                         }
+                    }
+                }
+                ForEach(availableFlows, id: \.id) { flow in
+                    Button(flow.title) {
+                        activeFlow = flow
                     }
                 }
             }

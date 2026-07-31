@@ -1,0 +1,80 @@
+import Foundation
+
+/// A guided, possibly interactive, multi-step operation an Integration
+/// offers on a Sprite. Steps prefer non-interactive exec; interactive steps
+/// drive a PTY headlessly behind native UI (ADR 0002).
+public struct Flow: Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    public let steps: [any FlowStep]
+
+    public init(id: String, title: String, steps: [any FlowStep]) {
+        self.id = id
+        self.title = title
+        self.steps = steps
+    }
+}
+
+public protocol FlowStep: Sendable {
+    var id: String { get }
+    var title: String { get }
+    func run(in context: FlowContext) async throws
+}
+
+/// Native step UI requests. No terminal emulator exists; interactive CLI
+/// dialogues surface as these prompts.
+public enum FlowPrompt: Sendable, Equatable {
+    /// Show an open-URL button and a code paste field.
+    case openURLAndEnterCode(url: URL, instructions: String)
+    /// An explicit consent gate (e.g. making the sprite URL public).
+    case consent(title: String, message: String, approveTitle: String)
+    /// Show the Pairing credential (T3 integration).
+    case pairing(Pairing)
+}
+
+public enum FlowResponse: Sendable, Equatable {
+    case text(String)
+    case approved
+    case declined
+    case acknowledged
+}
+
+/// The one-time credential the official T3 Code app uses to connect.
+public struct Pairing: Sendable, Equatable {
+    public var host: String
+    public var code: String
+    public var pairURL: URL?
+    public var expiresAt: Date?
+
+    public init(host: String, code: String, pairURL: URL? = nil, expiresAt: Date? = nil) {
+        self.host = host
+        self.code = code
+        self.pairURL = pairURL
+        self.expiresAt = expiresAt
+    }
+}
+
+public enum FlowError: Error, Equatable {
+    /// The step failed; the raw CLI output is surfaced by the run.
+    case failed(String)
+    /// The user declined a consent gate; the flow stops without failure noise.
+    case declined
+}
+
+/// What a running step can do: talk to the platform, append raw output to
+/// the failure surface, and ask the user through native step UI.
+public struct FlowContext: Sendable {
+    public let platform: SpritesPlatform
+    public let sprite: String
+    let emitOutput: @Sendable (String) -> Void
+    let promptHandler: @Sendable (FlowPrompt) async -> FlowResponse
+
+    /// Appends raw CLI output; shown as text if the step derails.
+    public func output(_ text: String) {
+        emitOutput(text)
+    }
+
+    public func prompt(_ prompt: FlowPrompt) async -> FlowResponse {
+        await promptHandler(prompt)
+    }
+}

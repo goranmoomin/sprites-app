@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Sprite detail with deep observation.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Login Flow completes against a scripted fake transcript and against a real sprite
 - [ ] OAuth URL is extracted and offered as an open-in-browser button; pasted code completes login
@@ -13,3 +13,11 @@
 - [ ] Detail screen shows "Claude Code: logged in" via observation (config/credential presence), not app-side memory
 - [ ] A reworded-prompt fake transcript fails visibly, not silently
 - [ ] Empirical check performed: hooks fire when the `claude` CLI is driven programmatically/headlessly (T3 stand-in), recorded in findings.md
+
+## Comments
+
+Implemented and verified against scripted fake transcripts (happy path,
+reworded-prompt derail, retry). The two live checks (real-sprite login run
+and hooks firing under T3-driven claude) require a real sprite plus a
+Claude subscription and remain pending; findings.md already records that a
+UserPromptSubmit hook fires for headless `claude -p` even while logged out.

@@ -1,0 +1,5 @@
+# Interactive Flow steps drive a PTY headlessly; no terminal emulator UI
+
+Some Flow steps require a real TTY (Claude Code's login is Ink-based and refuses to run without raw mode), but we deliberately ship no terminal emulator view: building good mobile terminal UX is a project of its own. Instead, Flows prefer non-interactive exec (`tty: false`, framed streams, ANSI mostly absent) and, where a TTY is unavoidable, attach to a `tty: true` exec session, strip/parse the output, and render native step UI (open-URL button, code paste field); scripted keystrokes go back over the socket.
+
+Trade-off accepted: scripted dialogues against human-oriented CLI output break when a CLI rewords its prompts; the failure surface is the raw output shown as text with the Flow marked failed. If full-screen Ink redraws make naive parsing unreliable, the sanctioned escape is a terminal library (SwiftTerm engine or libghostty) used as a headless screen buffer to reconstruct the text grid for matching — still no terminal UI.

@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Tapping Log in opens the Fly dashboard token page in an in-app browser
 - [ ] Returning with a token on the clipboard offers one-tap use; manual paste works

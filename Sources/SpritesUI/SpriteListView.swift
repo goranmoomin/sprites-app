@@ -8,6 +8,7 @@ public struct SpriteListView: View {
     @State private var model: SpriteListModel
     @State private var showingCreate = false
     @State private var spriteToDelete: SpriteMetadata?
+    @State private var path: [String] = []
 
     public init(session: Session, platform: SpritesPlatform) {
         self.session = session
@@ -16,7 +17,7 @@ public struct SpriteListView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let error = model.lastError {
                     ContentUnavailableView {
@@ -70,6 +71,9 @@ public struct SpriteListView: View {
             .sheet(isPresented: $showingCreate) {
                 CreateSpriteView(platform: platform) { _ in
                     Task { await model.refresh() }
+                } onFinished: { name in
+                    // The playlist ends on the new sprite's detail screen.
+                    path.append(name)
                 }
             }
             .confirmationDialog(

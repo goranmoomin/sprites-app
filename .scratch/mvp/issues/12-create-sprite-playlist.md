@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — Create and delete a sprite; 08 — Claude Code login Flow; 10 — T3 Code setup Flow and Pairing.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Full happy path: name -> Claude login -> T3 setup -> pairing -> detail screen, in one guided run
 - [ ] Every step is skippable; skipping lands on the detail screen with remaining Flows offered

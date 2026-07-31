@@ -15,6 +15,12 @@ struct FlowRunView: View {
         self.onFinished = onFinished
     }
 
+    /// Drives an externally created run (the create-sprite playlist).
+    init(run: FlowRun, onFinished: @escaping () -> Void) {
+        _run = State(initialValue: run)
+        self.onFinished = onFinished
+    }
+
     var body: some View {
         NavigationStack {
             List {

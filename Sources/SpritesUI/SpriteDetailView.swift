@@ -83,6 +83,14 @@ public struct SpriteDetailView: View {
         if lines.first(where: { $0.id == Integrations.claudeCode.id })?.isReady != true {
             flows.append(Integrations.claudeCode.loginFlow())
         }
+        // Pair again is offered whenever a T3-recognized service exists
+        // (e.g. after a restore), not only while it is running.
+        if (model.services ?? []).contains(where: Integrations.t3Code.recognizes) {
+            flows.append(Integrations.t3Code.pairAgainFlow())
+        }
+        if lines.first(where: { $0.id == Integrations.t3Code.id })?.isReady != true {
+            flows.append(Integrations.t3Code.setupFlow())
+        }
         return flows
     }
 

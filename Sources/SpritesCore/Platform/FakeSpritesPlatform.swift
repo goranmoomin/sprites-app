@@ -141,6 +141,12 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         return sprite
     }
 
+    public func setURLVisibility(sprite name: String, _ visibility: URLVisibility) async throws {
+        try checkAuthorized()
+        guard sprites[name] != nil else { throw PlatformError.notFound }
+        sprites[name]?.urlVisibility = visibility
+    }
+
     public func wake(sprite name: String) async throws {
         try checkAuthorized()
         guard sprites[name] != nil else { throw PlatformError.notFound }

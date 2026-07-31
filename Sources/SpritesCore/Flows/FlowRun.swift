@@ -54,10 +54,13 @@ public final class FlowRun {
         await run(from: currentStepIndex)
     }
 
-    /// Answers the currently displayed prompt.
+    /// Answers the currently displayed prompt. Clears the prompt right away
+    /// so a nextPrompt() loop suspends instead of re-reading it.
     public func respond(_ response: FlowResponse) {
         guard let continuation = responseContinuation else { return }
         responseContinuation = nil
+        currentPrompt = nil
+        if phase == .waitingForInput { phase = .running }
         continuation.resume(returning: response)
     }
 
@@ -111,10 +114,7 @@ public final class FlowRun {
         phase = .waitingForInput
         for waiter in promptWaiters { waiter.resume(returning: prompt) }
         promptWaiters = []
-        let response = await withCheckedContinuation { responseContinuation = $0 }
-        currentPrompt = nil
-        if phase == .waitingForInput { phase = .running }
-        return response
+        return await withCheckedContinuation { responseContinuation = $0 }
     }
 
     private func resolvePromptWaiters() {

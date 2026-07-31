@@ -171,6 +171,12 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         return metadata(from: try Self.decoder.decode(WireSprite.self, from: data))
     }
 
+    public func setURLVisibility(sprite: String, _ visibility: URLVisibility) async throws {
+        _ = try await send(request(
+            "PUT", "/v1/sprites/\(sprite)",
+            json: ["url_settings": ["auth": visibility == .public ? "public" : "sprite"]]))
+    }
+
     public func wake(sprite: String) async throws {
         // Any exec counts as activity and flips the sprite to running.
         _ = try await runCapturing(on: sprite, ["true"])

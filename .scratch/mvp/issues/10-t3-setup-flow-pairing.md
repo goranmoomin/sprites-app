@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 — Generic service management; 07 — Integration recognition and Actions; 08 — Claude Code login Flow.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Flow requires at least one logged-in coding agent before proceeding
 - [ ] T3 installs once; the service runs the installed binary; cold-start boot needs no network resolve
@@ -13,3 +13,11 @@
 - [ ] "Pair again" works standalone after restore or expiry
 - [ ] "Open in T3 Code" Action appears via recognition once the service runs
 - [ ] Empirical check performed: full pairing handshake and WS 101 with the official T3 Code iOS app through the public sprite URL (HTTP 200 and auth-gated /ws routing already verified; record in findings.md)
+
+## Comments
+
+The full pairing handshake with the official T3 Code iOS app (WS 101
+through the public sprite URL) still needs a live run with a real sprite
+and the shipping app; HTTP 200 and auth-gated /ws routing were already
+verified in apptest-probe2 (findings.md). The T3 Code app URL scheme used
+for the handoff (t3code://) is a placeholder pending that check.

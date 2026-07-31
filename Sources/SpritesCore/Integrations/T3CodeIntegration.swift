@@ -31,11 +31,14 @@ public struct T3CodeIntegration: Integration {
         guard !recognized.isEmpty else {
             return IntegrationStatus(summary: "not set up", isReady: false)
         }
+        // The installed version is observable, never remembered.
+        let version = try? await installedVersion(on: sprite, platform: platform)
+        let suffix = version.flatMap { $0 }.map { " (v\($0))" } ?? ""
         if recognized.contains(where: { $0.state?.status == "running" }) {
-            return IntegrationStatus(summary: "service running", isReady: true)
+            return IntegrationStatus(summary: "service running" + suffix, isReady: true)
         }
         let status = recognized.first?.state?.status ?? "not running"
-        return IntegrationStatus(summary: "service \(status)", isReady: false)
+        return IntegrationStatus(summary: "service \(status)" + suffix, isReady: false)
     }
 
     public func actions(services: [Service], metadata: SpriteMetadata?) -> [SpriteAction] {

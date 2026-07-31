@@ -65,6 +65,74 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         var auth: String
     }
 
+    private struct WireService: Decodable {
+        var name: String
+        var cmd: String
+        var args: [String]?
+        var env: [String: String]?
+        var dir: String?
+        var needs: [String]?
+        var http_port: Int?
+        var state: WireServiceState?
+    }
+
+    private struct WireServiceState: Decodable {
+        var status: String
+        var pid: Int?
+        var started_at: Date?
+        var error: String?
+        var restart_count: Int?
+        var next_restart_at: Date?
+    }
+
+    private struct WireServiceList: Decodable {
+        var services: [WireService]
+    }
+
+    private struct WireCheckpoint: Decodable {
+        var id: String
+        var create_time: Date?
+        var comment: String?
+        var is_auto: Bool?
+    }
+
+    private struct WireTask: Decodable {
+        var name: String
+        var started_at: Date?
+        var expires_at: Date?
+    }
+
+    // Observed live: GET /v1/tasks answers {"tasks": [...]}, not a bare array.
+    private struct WireTaskList: Decodable {
+        var tasks: [WireTask]
+    }
+
+    private static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let string = try decoder.singleValueContainer().decode(String.self)
+            if let date = iso.date(from: string) ?? plain.date(from: string) { return date }
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath, debugDescription: "unparseable date \(string)"))
+        }
+        return decoder
+    }()
+
+    private func service(from wire: WireService) -> Service {
+        Service(
+            name: wire.name, cmd: wire.cmd, args: wire.args ?? [], dir: wire.dir,
+            env: wire.env, httpPort: wire.http_port, needs: wire.needs,
+            state: wire.state.map {
+                ServiceState(
+                    status: $0.status, pid: $0.pid, startedAt: $0.started_at, error: $0.error,
+                    restartCount: $0.restart_count, nextRestartAt: $0.next_restart_at)
+            }
+        )
+    }
+
     private func metadata(from wire: WireSprite) -> SpriteMetadata {
         SpriteMetadata(
             name: wire.name,
@@ -78,17 +146,87 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
 
     public func listSprites() async throws -> [SpriteMetadata] {
         let data = try await send(request("GET", "/v1/sprites"))
-        let list = try JSONDecoder().decode(SpriteListResponse.self, from: data)
+        let list = try Self.decoder.decode(SpriteListResponse.self, from: data)
         return list.sprites.map(metadata(from:))
     }
 
     public func createSprite(named name: String) async throws -> SpriteMetadata {
         let data = try await send(request("POST", "/v1/sprites", json: ["name": name]))
-        let wire = try JSONDecoder().decode(WireSprite.self, from: data)
+        let wire = try Self.decoder.decode(WireSprite.self, from: data)
         return metadata(from: wire)
     }
 
     public func deleteSprite(named name: String) async throws {
         _ = try await send(request("DELETE", "/v1/sprites/\(name)"))
+    }
+
+    public func getSprite(named name: String) async throws -> SpriteMetadata {
+        let data = try await send(request("GET", "/v1/sprites/\(name)"))
+        return metadata(from: try Self.decoder.decode(WireSprite.self, from: data))
+    }
+
+    public func wake(sprite: String) async throws {
+        // Any exec counts as activity and flips the sprite to running.
+        _ = try await runCapturing(on: sprite, ["true"])
+    }
+
+    public func services(on sprite: String) async throws -> [Service] {
+        let data = try await send(request("GET", "/v1/sprites/\(sprite)/services"))
+        // The endpoint may answer a bare array or an object wrapper.
+        if let list = try? Self.decoder.decode([WireService].self, from: data) {
+            return list.map(service(from:))
+        }
+        return try Self.decoder.decode(WireServiceList.self, from: data).services.map(service(from:))
+    }
+
+    public func checkpoints(on sprite: String) async throws -> [Checkpoint] {
+        let data = try await send(request("GET", "/v1/sprites/\(sprite)/checkpoints"))
+        return try Self.decoder.decode([WireCheckpoint].self, from: data).map {
+            Checkpoint(id: $0.id, createTime: $0.create_time, comment: $0.comment, isAuto: $0.is_auto ?? false)
+        }
+    }
+
+    public func listTasks(on sprite: String) async throws -> [PlatformTask] {
+        // The Tasks API is in-sprite only, reached via exec against the
+        // management socket.
+        let result = try await runCapturing(on: sprite, ["sprite-env", "curl", "-s", "/v1/tasks"])
+        guard result.exitCode == 0 else {
+            throw PlatformError.api("listing tasks failed: \(result.stderrText)")
+        }
+        let wire = try Self.decoder.decode(WireTaskList.self, from: result.stdout)
+        return wire.tasks.map { PlatformTask(name: $0.name, startedAt: $0.started_at, expiresAt: $0.expires_at) }
+    }
+
+    public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/v1/sprites/\(sprite)/exec"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.scheme = components.scheme == "http" ? "ws" : "wss"
+        // URLQueryItem leaves ";" and "&" unencoded in values, and the
+        // server splits on them (observed live: a `sh -c` script with ";"
+        // arrived truncated). Encode values strictly ourselves.
+        var strict = CharacterSet.alphanumerics
+        strict.insert(charactersIn: "-._~")
+        func encode(_ value: String) -> String {
+            value.addingPercentEncoding(withAllowedCharacters: strict) ?? value
+        }
+        var pairs = command.argv.map { "cmd=\(encode($0))" }
+        pairs.append("stdin=true")
+        for (key, value) in command.env.sorted(by: { $0.key < $1.key }) {
+            pairs.append("env=\(encode("\(key)=\(value)"))")
+        }
+        if let dir = command.dir {
+            pairs.append("dir=\(encode(dir))")
+        }
+        if command.tty {
+            pairs.append("tty=true")
+            if let rows = command.rows { pairs.append("rows=\(rows)") }
+            if let cols = command.cols { pairs.append("cols=\(cols)") }
+        }
+        components.percentEncodedQuery = pairs.joined(separator: "&")
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return WebSocketExecSession(session: session, request: request, tty: command.tty)
     }
 }

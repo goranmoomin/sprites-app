@@ -38,7 +38,9 @@ public struct SpriteListView: View {
                     }
                 } else {
                     List(model.sprites) { sprite in
-                        SpriteRow(sprite: sprite)
+                        NavigationLink(value: sprite.name) {
+                            SpriteRow(sprite: sprite)
+                        }
                             .swipeActions {
                                 Button("Delete", role: .destructive) {
                                     spriteToDelete = sprite
@@ -49,6 +51,11 @@ public struct SpriteListView: View {
                 }
             }
             .navigationTitle("Sprites")
+            .navigationDestination(for: String.self) { name in
+                SpriteDetailView(platform: platform, spriteName: name, session: session) {
+                    Task { await model.refresh() }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {

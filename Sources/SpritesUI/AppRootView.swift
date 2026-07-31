@@ -10,24 +10,12 @@ public struct AppRootView: View {
     }
 
     public var body: some View {
-        if session.isLoggedIn {
-            SpriteListPlaceholderView()
+        if let platform = session.platform {
+            // State resets when the branch leaves the hierarchy on logout,
+            // so a re-login always gets a fresh list model.
+            SpriteListView(session: session, platform: platform)
         } else {
             LoginView(session: session)
-        }
-    }
-}
-
-// Replaced by the real sprite list in ticket 02.
-struct SpriteListPlaceholderView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "No sprites yet",
-                systemImage: "cube",
-                description: Text("Create a sprite to get started.")
-            )
-            .navigationTitle("Sprites")
         }
     }
 }

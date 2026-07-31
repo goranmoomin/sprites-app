@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Log in with a Sprite token.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Sprites display name and cold/warm/running status from list metadata
 - [ ] Pull-to-refresh re-observes

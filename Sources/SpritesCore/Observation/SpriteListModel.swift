@@ -18,6 +18,17 @@ public final class SpriteListModel {
         self.session = session
     }
 
+    /// Deletes the sprite on the platform, then re-observes the list.
+    public func delete(_ name: String) async {
+        do {
+            try await platform.deleteSprite(named: name)
+        } catch {
+            lastError = error
+            session?.handle(error)
+        }
+        await refresh()
+    }
+
     public func refresh() async {
         do {
             sprites = try await platform.listSprites()

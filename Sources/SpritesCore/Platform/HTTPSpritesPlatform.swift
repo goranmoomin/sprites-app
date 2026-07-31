@@ -19,10 +19,14 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
 
     // MARK: Requests
 
-    private func request(_ method: String, _ path: String) -> URLRequest {
+    private func request(_ method: String, _ path: String, json body: [String: Any]? = nil) -> URLRequest {
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
         return request
     }
 
@@ -76,5 +80,15 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         let data = try await send(request("GET", "/v1/sprites"))
         let list = try JSONDecoder().decode(SpriteListResponse.self, from: data)
         return list.sprites.map(metadata(from:))
+    }
+
+    public func createSprite(named name: String) async throws -> SpriteMetadata {
+        let data = try await send(request("POST", "/v1/sprites", json: ["name": name]))
+        let wire = try JSONDecoder().decode(WireSprite.self, from: data)
+        return metadata(from: wire)
+    }
+
+    public func deleteSprite(named name: String) async throws {
+        _ = try await send(request("DELETE", "/v1/sprites/\(name)"))
     }
 }

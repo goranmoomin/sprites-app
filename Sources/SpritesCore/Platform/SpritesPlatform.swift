@@ -6,4 +6,8 @@ import Foundation
 public protocol SpritesPlatform: Sendable {
     // MARK: Shallow observation (never wakes a Sprite)
     func listSprites() async throws -> [SpriteMetadata]
+
+    // MARK: Sprite CRUD
+    func createSprite(named name: String) async throws -> SpriteMetadata
+    func deleteSprite(named name: String) async throws
 }

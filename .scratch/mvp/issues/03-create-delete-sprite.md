@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Sprite list with shallow observation.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Suggested names follow adjective-noun-token and regenerate on request
 - [ ] The user can edit or replace the suggested name; creation failures (e.g. name taken) surface inline

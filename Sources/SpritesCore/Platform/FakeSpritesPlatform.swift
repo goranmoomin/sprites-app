@@ -64,4 +64,21 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         try checkAuthorized()
         return order.compactMap { sprites[$0] }
     }
+
+    public func createSprite(named name: String) async throws -> SpriteMetadata {
+        try checkAuthorized()
+        guard sprites[name] == nil else {
+            throw PlatformError.api("a sprite named \(name) already exists")
+        }
+        addSprite(name: name, status: .warm)
+        return sprites[name]!
+    }
+
+    public func deleteSprite(named name: String) async throws {
+        try checkAuthorized()
+        guard sprites.removeValue(forKey: name) != nil else {
+            throw PlatformError.notFound
+        }
+        order.removeAll { $0 == name }
+    }
 }

@@ -33,7 +33,8 @@ struct SpriteDetailTests {
         )
         await fake.setTask(
             on: "morning-cherry-1234",
-            PlatformTask(name: "claude-heartbeat", expiresAt: Date(timeIntervalSince1970: 2000)))
+            PlatformTask(
+                name: "claude-heartbeat", expiresAt: fake.now.addingTimeInterval(300)))
         await fake.setCheckpoint(on: "morning-cherry-1234", Checkpoint(id: "v1", comment: "before risky work"))
         let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
 

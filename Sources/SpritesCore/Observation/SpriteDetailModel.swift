@@ -100,6 +100,41 @@ public final class SpriteDetailModel {
         await refresh()
     }
 
+    // MARK: Keep-alive (a named platform task the app holds; max 1h)
+
+    public static let keepAliveTaskName = "sprites-app-keep-alive"
+
+    /// The app's Keep-alive, if currently held: visibly just a task.
+    public var keepAliveTask: PlatformTask? {
+        tasks?.first { $0.name == Self.keepAliveTaskName }
+    }
+
+    /// Creates or extends the Keep-alive. On a cold sprite this is a knowing
+    /// wake: an explicit user action surfaced as "waking...".
+    public func keepActive(forSeconds seconds: Int = 3600) async {
+        let needsWake = metadata?.status != .running
+        if needsWake { isWaking = true }
+        defer { if needsWake { isWaking = false } }
+        do {
+            try await platform.upsertTask(
+                on: spriteName, named: Self.keepAliveTaskName, expiringInSeconds: seconds)
+        } catch {
+            lastError = error
+            session?.handle(error)
+        }
+        await refresh()
+    }
+
+    public func releaseKeepAlive() async {
+        do {
+            try await platform.deleteTask(on: spriteName, named: Self.keepAliveTaskName)
+        } catch {
+            lastError = error
+            session?.handle(error)
+        }
+        await refresh()
+    }
+
     // MARK: Service lifecycle (deep; the screen re-observes after each)
 
     public func startService(_ name: String) async {

@@ -299,6 +299,25 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         }
     }
 
+    public func upsertTask(on sprite: String, named name: String, expiringInSeconds seconds: Int) async throws {
+        let body = "{\"name\":\"\(name)\",\"expire\":\"\(seconds)s\"}"
+        let result = try await runCapturing(
+            // PUT, not POST: observed live, POST is create-only and 409s on
+            // an existing name; PUT creates or refreshes.
+            on: sprite, ["sprite-env", "curl", "-s", "-X", "PUT", "-d", body, "/v1/tasks/\(name)"])
+        guard result.exitCode == 0 else {
+            throw PlatformError.api("upserting task failed: \(result.stdoutText)\(result.stderrText)")
+        }
+    }
+
+    public func deleteTask(on sprite: String, named name: String) async throws {
+        let result = try await runCapturing(
+            on: sprite, ["sprite-env", "curl", "-s", "-X", "DELETE", "/v1/tasks/\(name)"])
+        guard result.exitCode == 0 else {
+            throw PlatformError.api("deleting task failed: \(result.stderrText)")
+        }
+    }
+
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("/v1/sprites/\(sprite)/exec"),

@@ -13,6 +13,9 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     private var tasks: [String: [PlatformTask]] = [:]
     private var checkpointLists: [String: [Checkpoint]] = [:]
 
+    /// The injected clock: task expiry is evaluated against this.
+    public private(set) var now = Date(timeIntervalSince1970: 1_000_000)
+
     private var wakesHeld = false
     private var heldWakes: [CheckedContinuation<Void, Never>] = []
 
@@ -91,6 +94,10 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         files[sprite]?[path]
     }
 
+    public func advanceClock(by seconds: TimeInterval) {
+        now = now.addingTimeInterval(seconds)
+    }
+
     /// Makes wake() block until releaseWakes(), to observe "waking..." states.
     public func holdWakes() {
         wakesHeld = true
@@ -150,7 +157,21 @@ public actor FakeSpritesPlatform: SpritesPlatform {
 
     public func listTasks(on sprite: String) async throws -> [PlatformTask] {
         _ = try deepTouch(sprite)
-        return tasks[sprite] ?? []
+        return (tasks[sprite] ?? []).filter { task in
+            guard let expiresAt = task.expiresAt else { return true }
+            return expiresAt > now
+        }
+    }
+
+    public func upsertTask(on sprite: String, named name: String, expiringInSeconds seconds: Int) async throws {
+        _ = try deepTouch(sprite)
+        setTask(on: sprite, PlatformTask(
+            name: name, startedAt: now, expiresAt: now.addingTimeInterval(TimeInterval(seconds))))
+    }
+
+    public func deleteTask(on sprite: String, named name: String) async throws {
+        _ = try deepTouch(sprite)
+        tasks[sprite]?.removeAll { $0.name == name }
     }
 
     public func checkpoints(on sprite: String) async throws -> [Checkpoint] {

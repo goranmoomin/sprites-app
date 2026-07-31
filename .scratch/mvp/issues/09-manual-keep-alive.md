@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Sprite detail with deep observation.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Keep active creates the named task; the Tasks list shows it with its expiry
 - [ ] Extend refreshes the expiry; release deletes the task

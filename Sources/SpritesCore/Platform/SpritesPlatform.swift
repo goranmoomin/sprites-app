@@ -19,6 +19,10 @@ public protocol SpritesPlatform: Sendable {
     // MARK: Deep observation (wakes a cold Sprite)
     func services(on sprite: String) async throws -> [Service]
     func listTasks(on sprite: String) async throws -> [PlatformTask]
+    /// Creates or refreshes a named task. Observed live: the API's POST is
+    /// create-only (409 on an existing name); PUT is the upsert.
+    func upsertTask(on sprite: String, named name: String, expiringInSeconds seconds: Int) async throws
+    func deleteTask(on sprite: String, named name: String) async throws
     func checkpoints(on sprite: String) async throws -> [Checkpoint]
 
     // MARK: Services (deep; wakes a cold Sprite)

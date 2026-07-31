@@ -191,7 +191,7 @@ public struct SpriteDetailView: View {
             Text("Services")
         }
 
-        Section("Tasks") {
+        Section {
             if let tasks = model.tasks, !tasks.isEmpty {
                 ForEach(tasks) { task in
                     LabeledContent(task.name) {
@@ -204,6 +204,22 @@ public struct SpriteDetailView: View {
                 Text("No live tasks")
                     .foregroundStyle(.secondary)
             }
+            if model.keepAliveTask == nil {
+                Button("Keep active for an hour") {
+                    Task { await model.keepActive() }
+                }
+            } else {
+                Button("Extend keep-alive") {
+                    Task { await model.keepActive() }
+                }
+                Button("Release keep-alive", role: .destructive) {
+                    Task { await model.releaseKeepAlive() }
+                }
+            }
+        } header: {
+            Text("Tasks")
+        } footer: {
+            Text("A keep-alive is a named platform task this app holds to stop the sprite from pausing.")
         }
 
         Section("Checkpoints") {

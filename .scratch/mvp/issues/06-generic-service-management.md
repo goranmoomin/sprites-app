@@ -20,3 +20,6 @@ Restart is implemented as stop+start (the documented restart endpoint
 returned 404 in the apptest-probe2 run; see findings.md). Stop/start
 endpoint shapes are taken from the official JS SDK; live verification of
 stop/start against a real sprite is still pending.
+
+Stop/start endpoints verified live in the smoke suite (service stopped,
+restarted, logs fetched, deleted against a real sprite).

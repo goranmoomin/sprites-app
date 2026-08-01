@@ -26,8 +26,87 @@ Verified with the `sprite` CLI and `sprite api` on 2026-07-31.
 - Claude hooks fire headlessly: a `UserPromptSubmit` hook in user settings fired for `claude -p` even while logged out. Whether T3's invocation of the claude CLI loads user-level settings still needs the ticket-8 check with a real login.
 - Checkpoint create streams NDJSON of `{type: "info"|"complete", data, time}` with human-readable strings; the checkpoint ID is buried in an info line ("  ID: v1") - parse accordingly. List returns `[{id, create_time, comment, is_auto}]` including a `Current` pseudo-entry. Restore streams info/complete and the sprite returns `running` with services back up. Quirk: checkpoint `create_time` did not match wall-clock creation time in this probe; do not trust it for ordering UI without re-verifying.
 
+## Verified in third probe (apptest-probe3, since destroyed; live smoke suite)
+
+Run via `SPRITES_LIVE_TOKEN=... SPRITES_LIVE_SPRITE=... swift test --filter LivePlatformSmokeTests` against the real client code.
+
+- GET /v1/tasks answers `{"tasks": [...]}` (object wrapper), not the bare array the second probe's notes implied. POST body `{"name", "expire": "120s"}` confirmed; response echoes `{name, started_at, expires_at}`.
+- Exec query encoding: URLQueryItem leaves `;` and `&` unencoded in values and the server splits on them - a `sh -c` script with `;` arrived truncated (`sh: -c requires an argument`). Values must be strictly percent-encoded.
+- Framed non-TTY exec merges stderr into stdout frames (stream ID 2 documented, never observed), with nondeterministic interleaving. Exit codes exact. Output frames can trail the exit frame, so exit must be held until the server closes; and a fast command can close the socket before a stdin-EOF frame lands (send EOF best-effort).
+- The exec PTY starts with TERM unset and size 0x0; `claude setup-token` waits forever without TERM. With `TERM=xterm-256color` (and rows/cols set) claude v2.1.220 renders immediately.
+- Claude's sign-in URL appears in an OSC-8 hyperlink carrying an `id=` param (`ESC ]8;id=...;URL`), not empty params; the visible URL text is wrapped by the terminal and unusable. The CLI also emits `ESC ]9999;browser-open;URL` before the marker with the localhost-callback URL variant - anchoring extraction after the marker avoids it. The marker text "Browser didn't open? Use the url below to sign in (c to copy)" and the "Paste code here if prompted >" prompt are unchanged.
+- The login Flow (FlowRun + ClaudeSetupTokenStep) reaches the code prompt against a live sprite in ~4s.
+- Service stop/start endpoints (`POST .../stop`, `POST .../start`) work; logs endpoint returns text; delete works; upsert streams `started`/`log`/`complete`. Checkpoint create streams info/complete and the checkpoint lists with its comment.
+- Wake decay: exec flips status to `running` transiently; an active task holds it `running`; with no tasks it settles back to `warm` within a couple of minutes. "Wake to inspect" therefore cannot rely on the status field staying `running`; user consent has to gate deep observation.
+- Checkpoints list from a fresh sprite is a bare array containing the `Current` pseudo-entry with `is_auto: false` and no `comment`.
+
+## Verified in fourth probe (apptest-probe4, since destroyed; full live flow validation)
+
+Every Flow was driven end-to-end against a real sprite through the app's own
+code paths (FlowRun + real client), with the OAuth browser side driven
+separately and the code fed into the native prompt.
+
+- `claude setup-token` persists nothing (documented: prints a CI token for
+  CLAUDE_CODE_OAUTH_TOKEN). The login Flow uses `claude auth login --claudeai`
+  instead: same PTY dialogue shape (different wording: "If your browser
+  didn't open, visit: <bare url>"), and on success claude itself writes the
+  documented store `~/.claude/.credentials.json` (Linux). `claude auth status
+  --json` reports `loggedIn` and is used as the flow's verification.
+- Ink swallows a trailing \r sent in the same chunk as the pasted code (it
+  is treated as pasted text); Enter must be sent as its own keystroke after a
+  short delay or the masked field never submits.
+- Hand-written credentials (`{"claudeAiOauth":{accessToken,expiresAt,scopes,
+  subscriptionType}}`) also log claude in, but are unnecessary with auth login.
+- Tasks API semantics: POST /v1/tasks is create-only and answers 409 for an
+  existing name; PUT /v1/tasks/{name} creates or refreshes (resets
+  started_at, expires_at = now + expire). `expire` accepts both "120s" and
+  "5m". sprite-env curl passes -f, so HTTP errors surface as exit 22. Both
+  the Keep-alive and the heartbeat hooks must use PUT.
+- Heartbeat hooks fire for headless `claude -p` while logged in: the task
+  appears during the turn, an existing task's expiry is refreshed (PUT), and
+  the Stop hook releases it after the turn.
+- Full T3 setup Flow succeeded live in about a minute: npm install +
+  install-scripts approve + rebuild, service on the installed binary,
+  consent-gated public URL, pairing created while the service runs. Pairing
+  JSON without --ttl carries no expiresAt. Pair-again issues a fresh code.
+  Detail observation showed "T3 Code: service running (v0.0.31)", the
+  open-in-t3-code action, recognition (not Custom), public root 200 and /ws
+  401 through the proxy (re-confirming probe2).
+- Checkpoint create streamed nine info events then complete; restore
+  streamed info/complete; post-restore re-observation showed the login and
+  service intact (same-state restore).
+- `--base-dir` is T3's data directory (T3CODE_HOME, default `~/.t3`), where
+  it keeps userdata/, caches/, and worktrees/ - not a workspace root.
+  Passing `--base-dir /home/sprite` sprayed caches/ and worktrees/ into the
+  home directory. The flow now omits --base-dir everywhere (data stays in
+  the default `~/.t3`) and sets the service dir to the home dir (serve's
+  cwd, inherited by provider sessions).
+- The base image installs its npm agents user-globally: prefix `~/.local`
+  (codex at `~/.local/lib/node_modules/@openai/codex` symlinked into
+  `~/.local/bin`; gemini likewise; claude via its native installer under
+  `~/.local/share/claude`). T3 follows the same convention:
+  `npm install -g --prefix ~/.local --allow-scripts=node-pty,msgpackr-extract t3`
+  builds node-pty's native module during install (npm blocks it by default;
+  no separate approve/rebuild dance needed). msgpackr-extract's native part
+  does not build but is optional acceleration; t3 serve boots fine.
+  Re-validated on apptest-probe6: binary at `~/.local/bin/t3`, T3 data under
+  `~/.t3`, home clean, full setup/pairing/checkpoint/keep-alive green.
+- Task deletion can be visible with a short lag: one release read still
+  showed the task; the next list was empty (deletion had landed).
+
 ## Still to verify (folded into tickets 8, 10)
 
-- Full T3 pairing handshake and WS 101 with the official T3 Code iOS app through the public sprite URL.
-- Claude heartbeat hooks firing when T3 itself drives the `claude` CLI (requires a real Claude login).
+- Full T3 pairing handshake and WS 101 with the official T3 Code iOS app through the public sprite URL (needs the shipping app plus a pairing code).
+- Claude heartbeat hooks firing when T3 itself drives the `claude` CLI (hooks are user-level and fire for headless `claude -p`, so this is expected to hold; needs a paired client to confirm).
 - Cold-wake (not warm-wake) latency and behavior through the URL and exec.
+
+## Node runtime (apptest-probe7, since destroyed)
+
+One node serves everything: nvm-managed v24.18.0 under
+/.sprite/languages/node/nvm, first on PATH via /etc/profile.d (plus a
+/.sprite/bin/node shim); no system node exists. codex, gemini, and the
+installed t3 all use `#!/usr/bin/env node`, and a supervised service's
+process was confirmed executing that same nvm node with the same PATH. So
+node-pty is built by and run on the identical binary; the only ABI risk is
+a base-image node bump across sprite upgrades, which would surface as a
+crash-looping service and is fixed by re-running the setup Flow.

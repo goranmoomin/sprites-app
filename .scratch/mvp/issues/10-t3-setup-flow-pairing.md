@@ -21,3 +21,23 @@ through the public sprite URL) still needs a live run with a real sprite
 and the shipping app; HTTP 200 and auth-gated /ws routing were already
 verified in apptest-probe2 (findings.md). The T3 Code app URL scheme used
 for the handoff (t3code://) is a placeholder pending that check.
+
+Live validation completed against apptest-probe4 (findings.md, fourth
+probe): install-once, service on the installed binary, consent-gated
+public URL, pairing on the public host, pair-again with a fresh code,
+version in the status line, recognition and the handoff action, public
+root 200 and auth-gated /ws 401. Only the WS 101 with the shipping T3
+Code app remains.
+
+Correction after user testing: `--base-dir` is T3's data directory
+(T3CODE_HOME, default ~/.t3), not a workspace root; passing /home/sprite
+scattered caches/ and worktrees/ into the home dir. The flow now installs
+into ~/.t3-runtime, leaves T3's data in its default ~/.t3, and sets the
+service dir (serve's cwd) to the home dir. Re-validated live on
+apptest-probe5.
+
+Second correction: T3 now installs the way the base image installs codex
+and gemini - a user-level global npm install with prefix ~/.local
+(binary at ~/.local/bin/t3), using --allow-scripts at install time for the
+node-pty native build. No bespoke runtime directory. Re-validated live on
+apptest-probe6.

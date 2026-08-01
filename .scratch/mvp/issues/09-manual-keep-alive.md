@@ -11,3 +11,11 @@
 - [ ] Expiry behavior is tested against the injected clock in the fake
 - [ ] Creating a Keep-alive on a cold sprite wakes it knowingly (explicit user action, "waking..." state)
 - [ ] No auto-lease is created by any other feature
+
+## Comments
+
+Live validation (findings.md, fourth probe): the tasks API's POST is
+create-only and 409s on an existing name, so create/extend both go through
+PUT /v1/tasks/{name} (upsertTask on the seam). Create, extend (expiry
+moved), and release were verified through SpriteDetailModel against a real
+sprite.

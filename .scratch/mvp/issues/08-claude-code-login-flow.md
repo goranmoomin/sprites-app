@@ -21,3 +21,11 @@ reworded-prompt derail, retry). The two live checks (real-sprite login run
 and hooks firing under T3-driven claude) require a real sprite plus a
 Claude subscription and remain pending; findings.md already records that a
 UserPromptSubmit hook fires for headless `claude -p` even while logged out.
+
+Live validation completed against apptest-probe4 (findings.md, fourth
+probe): the full login ran end-to-end through FlowRun with a real OAuth
+code. The flow now drives `claude auth login --claudeai` (setup-token
+persists nothing by design), verifies via `claude auth status --json`, and
+the hooks were seen firing, refreshing, and releasing around a headless
+`claude -p`. Only T3-driven claude turns remain unverified (needs a paired
+client).

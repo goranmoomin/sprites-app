@@ -2,6 +2,12 @@ import Foundation
 
 /// In-memory simulation of the Sprites platform for tests.
 public actor FakeSpritesPlatform: SpritesPlatform {
+    /// The ADR 0001 tripwire firing: a deep operation hit a cold sprite
+    /// that was never explicitly woken.
+    public struct ColdDeepCallViolation: Error {
+        public let sprite: String
+    }
+
     /// When false, every call fails as a revoked/invalid token would.
     public var isAuthorized: Bool
 
@@ -27,6 +33,11 @@ public actor FakeSpritesPlatform: SpritesPlatform {
 
     private var wakesHeld = false
     private var heldWakes: [CheckedContinuation<Void, Never>] = []
+
+    /// Sprites knowingly woken: an explicit wake() or a wake-holding task
+    /// upsert (Keep-alive). Deep calls on a cold sprite outside this set
+    /// are ADR 0001 violations.
+    private var explicitlyWoken: Set<String> = []
 
     private struct ExecScript {
         let matches: @Sendable (ExecCommand) -> Bool
@@ -130,10 +141,14 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     // MARK: Deep-touch bookkeeping
 
     /// Every deep call funnels through here: it records the touch and wakes
-    /// a cold sprite, exactly like the real platform treats activity.
+    /// a cold sprite, exactly like the real platform treats activity. Deep
+    /// on a cold, never-woken sprite fails loudly (ADR 0001 tripwire).
     private func deepTouch(_ name: String) throws -> SpriteMetadata {
         try checkAuthorized()
         guard var sprite = sprites[name] else { throw PlatformError.notFound }
+        guard sprite.status != .cold || explicitlyWoken.contains(name) else {
+            throw ColdDeepCallViolation(sprite: name)
+        }
         deepTouches.append(name)
         if sprite.status != .running {
             sprite.status = .running
@@ -162,6 +177,7 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         if wakesHeld {
             await withCheckedContinuation { heldWakes.append($0) }
         }
+        explicitlyWoken.insert(name)
         sprites[name]?.status = .running
     }
 
@@ -179,6 +195,9 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     }
 
     public func upsertTask(on sprite: String, named name: String, expiringInSeconds seconds: Int) async throws {
+        // Holding a sprite awake is itself a knowing wake (Keep-alive on a
+        // cold sprite), so it passes the cold-deep tripwire.
+        explicitlyWoken.insert(sprite)
         _ = try deepTouch(sprite)
         setTask(on: sprite, PlatformTask(
             name: name, startedAt: now, expiresAt: now.addingTimeInterval(TimeInterval(seconds))))

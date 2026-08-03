@@ -33,4 +33,8 @@ public struct ClaudeCodeIntegration: Integration {
     public func actions(services: [Service], metadata: SpriteMetadata?) -> [SpriteAction] {
         []
     }
+
+    public func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow] {
+        status.isReady ? [] : [loginFlow()]
+    }
 }

@@ -96,24 +96,6 @@ public struct SpriteDetailView: View {
         }
     }
 
-    /// Flows offered given the observed integration state.
-    private var availableFlows: [Flow] {
-        var flows: [Flow] = []
-        let lines = model.integrationLines ?? []
-        if lines.first(where: { $0.id == Integrations.claudeCode.id })?.isReady != true {
-            flows.append(Integrations.claudeCode.loginFlow())
-        }
-        // Pair again is offered whenever a T3-recognized service exists
-        // (e.g. after a restore), not only while it is running.
-        if (model.services ?? []).contains(where: Integrations.t3Code.recognizes) {
-            flows.append(Integrations.t3Code.pairAgainFlow())
-        }
-        if lines.first(where: { $0.id == Integrations.t3Code.id })?.isReady != true {
-            flows.append(Integrations.t3Code.setupFlow())
-        }
-        return flows
-    }
-
     private var statusSection: some View {
         Section("Status") {
             LabeledContent("Status", value: model.metadata?.status.display ?? "...")
@@ -163,7 +145,7 @@ public struct SpriteDetailView: View {
                         }
                     }
                 }
-                ForEach(availableFlows, id: \.id) { flow in
+                ForEach(model.offeredFlows ?? [], id: \.id) { flow in
                     Button(flow.title) {
                         activeFlow = flow
                     }

@@ -26,6 +26,8 @@ public final class SpriteDetailModel {
     public private(set) var integrationLines: [IntegrationStatusLine]?
     /// One-tap Actions contributed by integrations.
     public private(set) var actions: [SpriteAction]?
+    /// Flows the injected integrations currently offer, in registry order.
+    public private(set) var offeredFlows: [Flow]?
 
     public struct IntegrationStatusLine: Sendable, Equatable, Identifiable {
         public var id: String
@@ -229,6 +231,7 @@ public final class SpriteDetailModel {
         let services = services ?? []
         var lines: [IntegrationStatusLine] = []
         var actions: [SpriteAction] = []
+        var flows: [Flow] = []
         for integration in integrations {
             let status = try await integration.observeStatus(
                 on: sprite, services: services, platform: platform)
@@ -236,11 +239,14 @@ public final class SpriteDetailModel {
                 id: integration.id, title: integration.displayName,
                 summary: status.summary, isReady: status.isReady))
             actions.append(contentsOf: integration.actions(services: services, metadata: metadata))
+            flows.append(contentsOf: integration.flows(
+                status: status, services: services, metadata: metadata))
         }
         // The app's own contribution to the same list: the one-shot exec
         // sheet behind Run command.
         actions.append(SpriteAction(id: "run-command", title: "Run command", kind: .runCommand))
         integrationLines = lines
         self.actions = actions
+        offeredFlows = flows
     }
 }

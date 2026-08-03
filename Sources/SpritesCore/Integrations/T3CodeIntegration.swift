@@ -45,4 +45,17 @@ public struct T3CodeIntegration: Integration {
         guard services.contains(where: recognizes) else { return [] }
         return [SpriteAction(id: "open-in-t3-code", title: "Open in T3 Code", kind: .openURL(Self.appURL))]
     }
+
+    public func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow] {
+        var flows: [Flow] = []
+        // Pair again is offered whenever a recognized service exists
+        // (e.g. after a restore), not only while it is running.
+        if services.contains(where: recognizes) {
+            flows.append(pairAgainFlow())
+        }
+        if !status.isReady {
+            flows.append(setupFlow())
+        }
+        return flows
+    }
 }

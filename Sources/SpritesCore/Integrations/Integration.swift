@@ -48,6 +48,11 @@ public protocol Integration: Sendable {
 
     /// Actions contributed given the currently observed services.
     func actions(services: [Service], metadata: SpriteMetadata?) -> [SpriteAction]
+
+    /// Flows currently offered given this integration's observed context.
+    /// Per-integration ordering is the integration's own; callers keep
+    /// cross-integration registry order.
+    func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow]
 }
 
 /// The MVP registry: exactly two integrations.

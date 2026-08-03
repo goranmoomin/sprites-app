@@ -6,7 +6,7 @@ import CoreImage.CIFilterBuiltins
 /// The Pairing screen: hostname, one-time code, QR, copy buttons, and the
 /// T3 Code app handoff.
 struct PairingSectionView: View {
-    let pairing: Pairing
+    let pairing: T3Pairing
     let done: () -> Void
     @Environment(\.openURL) private var openURL
 

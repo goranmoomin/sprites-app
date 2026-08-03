@@ -28,14 +28,14 @@ struct InteractiveT3Tests {
 
         // 1. T3 setup Flow, consenting and acknowledging like a user.
         let run = FlowRun(flow: Integrations.t3Code.setupFlow(), platform: platform, sprite: sprite)
-        let responder = Task { () -> Pairing? in
-            var pairing: Pairing?
+        let responder = Task { () -> T3Pairing? in
+            var pairing: T3Pairing?
             while let prompt = await run.nextPrompt() {
                 switch prompt {
                 case .consent(let title, _, _):
                     note("### CONSENT PROMPT \(title)")
                     run.respond(.approved)
-                case .pairing(let p):
+                case .t3Pairing(let p):
                     pairing = p
                     note("### PAIRING host=\(p.host) code=\(p.code.prefix(8))... url=\(p.pairURL?.absoluteString.prefix(60) ?? "none") expires=\(p.expiresAt.map(String.init(describing:)) ?? "nil")")
                     run.respond(.acknowledged)
@@ -78,10 +78,10 @@ struct InteractiveT3Tests {
 
         // 4. Pair again, standalone.
         let pairAgain = FlowRun(flow: Integrations.t3Code.pairAgainFlow(), platform: platform, sprite: sprite)
-        let pairResponder = Task { () -> Pairing? in
-            var second: Pairing?
+        let pairResponder = Task { () -> T3Pairing? in
+            var second: T3Pairing?
             while let prompt = await pairAgain.nextPrompt() {
-                if case .pairing(let p) = prompt { second = p }
+                if case .t3Pairing(let p) = prompt { second = p }
                 pairAgain.respond(.acknowledged)
             }
             return second

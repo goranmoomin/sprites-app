@@ -65,7 +65,7 @@ struct T3SetupFlowTests {
                 case .consent(_, let message, _):
                     #expect(message.contains("public"))
                     run.respond(.approved)
-                case .pairing(let pairing):
+                case .t3Pairing(let pairing):
                     #expect(pairing.host == "morning-cherry-1234-fake.sprites.app")
                     #expect(pairing.code == "otp-12345")
                     #expect(pairing.pairURL?.absoluteString.contains("token=otp-12345") == true)
@@ -149,9 +149,9 @@ struct T3SetupFlowTests {
 
         let run = FlowRun(flow: Integrations.t3Code.pairAgainFlow(), platform: fake, sprite: Self.sprite)
         let responder = Task {
-            var pairing: Pairing?
+            var pairing: T3Pairing?
             while let prompt = await run.nextPrompt() {
-                if case .pairing(let p) = prompt { pairing = p }
+                if case .t3Pairing(let p) = prompt { pairing = p }
                 run.respond(.acknowledged)
             }
             return pairing

@@ -22,14 +22,16 @@ public protocol FlowStep: Sendable {
 }
 
 /// Native step UI requests. No terminal emulator exists; interactive CLI
-/// dialogues surface as these prompts.
+/// dialogues surface as these prompts. Integration-neutral cases are
+/// unprefixed; bespoke integration screens are welcome, prefixed and homed
+/// with their owner (ADR 0002).
 public enum FlowPrompt: Sendable, Equatable {
     /// Show an open-URL button and a code paste field.
     case openURLAndEnterCode(url: URL, instructions: String)
     /// An explicit consent gate (e.g. making the sprite URL public).
     case consent(title: String, message: String, approveTitle: String)
-    /// Show the Pairing credential (T3 integration).
-    case pairing(Pairing)
+    /// Show the T3 Pairing credential (defined with the T3 integration).
+    case t3Pairing(T3Pairing)
 }
 
 public enum FlowResponse: Sendable, Equatable {
@@ -37,21 +39,6 @@ public enum FlowResponse: Sendable, Equatable {
     case approved
     case declined
     case acknowledged
-}
-
-/// The one-time credential the official T3 Code app uses to connect.
-public struct Pairing: Sendable, Equatable {
-    public var host: String
-    public var code: String
-    public var pairURL: URL?
-    public var expiresAt: Date?
-
-    public init(host: String, code: String, pairURL: URL? = nil, expiresAt: Date? = nil) {
-        self.host = host
-        self.code = code
-        self.pairURL = pairURL
-        self.expiresAt = expiresAt
-    }
 }
 
 public enum FlowError: Error, Equatable {

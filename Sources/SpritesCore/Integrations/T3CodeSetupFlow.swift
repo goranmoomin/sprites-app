@@ -146,6 +146,22 @@ struct PublicURLConsentStep: FlowStep {
     }
 }
 
+/// The one-time credential the official T3 Code app uses to connect.
+/// Pairing is a T3-only term (CONTEXT.md), so the type lives here.
+public struct T3Pairing: Sendable, Equatable {
+    public var host: String
+    public var code: String
+    public var pairURL: URL?
+    public var expiresAt: Date?
+
+    public init(host: String, code: String, pairURL: URL? = nil, expiresAt: Date? = nil) {
+        self.host = host
+        self.code = code
+        self.pairURL = pairURL
+        self.expiresAt = expiresAt
+    }
+}
+
 /// Creates the Pairing credential non-interactively. The serve log's own
 /// pairing URL carries a local IP, so this asks the CLI for one on the
 /// public host instead.
@@ -170,10 +186,10 @@ struct CreatePairingStep: FlowStep {
         guard let pairing = Self.parsePairing(result.stdoutText, host: host) else {
             throw FlowError.failed("Could not parse the pairing JSON from t3's output.")
         }
-        _ = await context.prompt(.pairing(pairing))
+        _ = await context.prompt(.t3Pairing(pairing))
     }
 
-    static func parsePairing(_ output: String, host: String) -> Pairing? {
+    static func parsePairing(_ output: String, host: String) -> T3Pairing? {
         guard let jsonStart = output.firstIndex(of: "{"),
             let object = try? JSONSerialization.jsonObject(
                 with: Data(output[jsonStart...].utf8)) as? [String: Any]
@@ -191,6 +207,6 @@ struct CreatePairingStep: FlowStep {
             code = String(match.1)
         }
         guard let code else { return nil }
-        return Pairing(host: pairURL?.host() ?? host, code: code, pairURL: pairURL, expiresAt: expiresAt)
+        return T3Pairing(host: pairURL?.host() ?? host, code: code, pairURL: pairURL, expiresAt: expiresAt)
     }
 }

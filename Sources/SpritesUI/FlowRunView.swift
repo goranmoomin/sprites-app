@@ -144,7 +144,7 @@ struct FlowPromptView: View {
                 Button(approveTitle) { respond(.approved) }
                 Button("Not now", role: .cancel) { respond(.declined) }
             }
-        case .pairing(let pairing):
+        case .t3Pairing(let pairing):
             PairingSectionView(pairing: pairing) { respond(.acknowledged) }
         }
     }

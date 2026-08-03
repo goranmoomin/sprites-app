@@ -34,7 +34,7 @@ struct CreateSpritePlaylistTests {
                 switch prompt {
                 case .openURLAndEnterCode: run.respond(.text("auth-code-42"))
                 case .consent: run.respond(.approved)
-                case .pairing: run.respond(.acknowledged)
+                case .t3Pairing: run.respond(.acknowledged)
                 }
             }
         }

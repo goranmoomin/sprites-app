@@ -7,8 +7,8 @@ struct ExecActionView: View {
     @State private var model: ExecActionModel
     @State private var commandLine = ""
 
-    init(platform: SpritesPlatform, spriteName: String) {
-        _model = State(initialValue: ExecActionModel(platform: platform, spriteName: spriteName))
+    init(platform: SpritesPlatform, sprite: String) {
+        _model = State(initialValue: ExecActionModel(platform: platform, sprite: sprite))
     }
 
     var body: some View {

@@ -63,7 +63,7 @@ struct ServiceDetailView: View {
                         }
                     }
                     NavigationLink("View logs") {
-                        ServiceLogsView(platform: platform, spriteName: model.spriteName, serviceName: serviceName)
+                        ServiceLogsView(platform: platform, sprite: model.sprite, serviceName: serviceName)
                     }
                 }
 
@@ -93,9 +93,9 @@ struct ServiceDetailView: View {
 struct ServiceLogsView: View {
     @State private var model: ServiceLogsModel
 
-    init(platform: SpritesPlatform, spriteName: String, serviceName: String) {
+    init(platform: SpritesPlatform, sprite: String, serviceName: String) {
         _model = State(initialValue: ServiceLogsModel(
-            platform: platform, spriteName: spriteName, serviceName: serviceName))
+            platform: platform, sprite: sprite, serviceName: serviceName))
     }
 
     var body: some View {

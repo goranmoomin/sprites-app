@@ -7,7 +7,7 @@ struct KeepAliveTests {
     @Test func keepActiveCreatesTheNamedTaskWithVisibleExpiry() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
 
         await model.keepActive()
@@ -23,7 +23,7 @@ struct KeepAliveTests {
     @Test func extendRefreshesTheExpiry() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
         await model.keepActive()
 
@@ -37,7 +37,7 @@ struct KeepAliveTests {
     @Test func releaseDeletesTheTask() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
         await model.keepActive()
 
@@ -50,7 +50,7 @@ struct KeepAliveTests {
     @Test func anExpiredKeepAliveDisappearsFromObservation() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
         await model.keepActive()
 
@@ -63,7 +63,7 @@ struct KeepAliveTests {
     @Test func keepActiveOnAColdSpriteWakesItKnowingly() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)
-        let model = SpriteDetailModel(platform: fake, spriteName: "quiet-frog-5678")
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
         await model.refresh()
 
         await model.keepActive()
@@ -76,10 +76,10 @@ struct KeepAliveTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
         await fake.scriptExec(where: { _ in true }) { _, io in io.exit(0) }
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
 
-        let exec = ExecActionModel(platform: fake, spriteName: "morning-cherry-1234")
+        let exec = ExecActionModel(platform: fake, sprite: "morning-cherry-1234")
         await exec.run("echo hi")
         await model.refresh()
 

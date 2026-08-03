@@ -82,7 +82,7 @@ struct ClaudeCodeLoginFlowTests {
         #expect(settings.contains("claude-heartbeat"))
 
         // And the detail screen now observes "logged in".
-        let detail = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let detail = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await detail.refresh()
         #expect(detail.integrationLines?.first { $0.title == "Claude Code" }?.summary == "logged in")
     }

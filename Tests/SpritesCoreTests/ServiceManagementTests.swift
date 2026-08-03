@@ -12,7 +12,7 @@ struct ServiceManagementTests {
 
     @Test func createServiceFormMapsOneToOneToThePlatformDefinition() async throws {
         let fake = await makeFake()
-        let model = CreateServiceModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = CreateServiceModel(platform: fake, sprite: "morning-cherry-1234")
         model.name = "my-service"
         model.executable = "/usr/local/bin/thing"
         model.arguments = ["--port", "8080"]
@@ -36,7 +36,7 @@ struct ServiceManagementTests {
 
     @Test func upsertProgressEventsAreShownLive() async throws {
         let fake = await makeFake()
-        let model = CreateServiceModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = CreateServiceModel(platform: fake, sprite: "morning-cherry-1234")
         model.name = "my-service"
         model.executable = "/bin/thing"
 
@@ -51,7 +51,7 @@ struct ServiceManagementTests {
         await fake.setService(
             on: "morning-cherry-1234",
             Service(name: "svc", cmd: "/bin/thing", args: [], state: ServiceState(status: "stopped")))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
 
         await model.startService("svc")
@@ -74,7 +74,7 @@ struct ServiceManagementTests {
             Service(name: "t3", cmd: "/bin/t3", args: ["serve"],
                     state: ServiceState(status: "failed", error: "exited with code 1",
                                         restartCount: 4, nextRestartAt: nextRestart)))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
@@ -89,7 +89,7 @@ struct ServiceManagementTests {
         let fake = await makeFake()
         await fake.setService(on: "morning-cherry-1234", Service(name: "svc", cmd: "/bin/thing", args: []))
         await fake.setServiceLogs(on: "morning-cherry-1234", service: "svc", "line one\nline two\n")
-        let model = ServiceLogsModel(platform: fake, spriteName: "morning-cherry-1234", serviceName: "svc")
+        let model = ServiceLogsModel(platform: fake, sprite: "morning-cherry-1234", serviceName: "svc")
 
         await model.load()
 
@@ -99,7 +99,7 @@ struct ServiceManagementTests {
     @Test func deletingAServiceRemovesItFromObservation() async throws {
         let fake = await makeFake()
         await fake.setService(on: "morning-cherry-1234", Service(name: "svc", cmd: "/bin/thing", args: []))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
 
         await model.deleteService("svc")

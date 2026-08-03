@@ -19,7 +19,7 @@ struct IntegrationRecognitionTests {
             Service(name: "anything-at-all", cmd: "/home/sprite/.local/bin/t3",
                     args: ["serve", "--host", "0.0.0.0", "--port", "3773"],
                     state: ServiceState(status: "running", pid: 42)))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
@@ -34,7 +34,7 @@ struct IntegrationRecognitionTests {
         await fake.setService(
             on: "morning-cherry-1234",
             Service(name: "t3", cmd: "/usr/bin/python3", args: ["-m", "http.server"]))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
@@ -51,7 +51,7 @@ struct IntegrationRecognitionTests {
         await fake.setService(
             on: "morning-cherry-1234",
             Service(name: "b", cmd: "/home/sprite/.local/bin/t3", args: ["auth", "whoami"]))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
@@ -68,7 +68,7 @@ struct IntegrationRecognitionTests {
             on: "morning-cherry-1234",
             Service(name: "second", cmd: "/home/sprite/.local/bin/t3",
                     args: ["serve", "--base-dir", "/home/sprite/b"]))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
@@ -77,7 +77,7 @@ struct IntegrationRecognitionTests {
 
     @Test func claudeCodeStatusLineObservesCredentialPresence() async throws {
         let fake = await makeFake()
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
         #expect(model.integrationLines?.first { $0.title == "Claude Code" }?.summary == "not logged in")

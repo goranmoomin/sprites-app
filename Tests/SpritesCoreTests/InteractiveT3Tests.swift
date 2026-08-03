@@ -57,7 +57,7 @@ struct InteractiveT3Tests {
         #expect(pairing != nil)
 
         // 2. Observation: status line with version, action, recognition.
-        let detail = SpriteDetailModel(platform: platform, spriteName: sprite)
+        let detail = SpriteDetailModel(platform: platform, sprite: sprite)
         await detail.refresh()
         for line in detail.integrationLines ?? [] {
             note("### STATUS \(line.title): \(line.summary) ready=\(line.isReady)")

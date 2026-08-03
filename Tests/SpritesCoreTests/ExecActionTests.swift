@@ -17,7 +17,7 @@ struct ExecActionTests {
             io.stderr("ls: /nope: No such file or directory\n")
             io.exit(1)
         }
-        let model = ExecActionModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = ExecActionModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.run("ls /nope")
 
@@ -32,7 +32,7 @@ struct ExecActionTests {
         // ADR 0002: non-TTY framed exec only.
         let fake = await makeFake()
         await fake.scriptExec(where: { _ in true }) { _, io in io.exit(0) }
-        let model = ExecActionModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = ExecActionModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.run("echo hi")
 
@@ -46,7 +46,7 @@ struct ExecActionTests {
             try? await Task.sleep(for: .seconds(30))  // command hangs
             io.exit(0)
         }
-        let model = ExecActionModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = ExecActionModel(platform: fake, sprite: "morning-cherry-1234")
 
         let run = Task { await model.run("sleep 999") }
         try await Task.sleep(for: .milliseconds(50))

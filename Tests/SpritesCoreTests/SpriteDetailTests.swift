@@ -8,7 +8,7 @@ struct SpriteDetailTests {
         // ADR 0001: deep calls never hit a cold sprite uninvited.
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)
-        let model = SpriteDetailModel(platform: fake, spriteName: "quiet-frog-5678")
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
 
         await model.refresh()
 
@@ -36,7 +36,7 @@ struct SpriteDetailTests {
             PlatformTask(
                 name: "claude-heartbeat", expiresAt: fake.now.addingTimeInterval(300)))
         await fake.setCheckpoint(on: "morning-cherry-1234", Checkpoint(id: "v1", comment: "before risky work"))
-        let model = SpriteDetailModel(platform: fake, spriteName: "morning-cherry-1234")
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
@@ -52,7 +52,7 @@ struct SpriteDetailTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)
         await fake.setService(on: "quiet-frog-5678", Service(name: "custom", cmd: "/usr/bin/thing", args: []))
-        let model = SpriteDetailModel(platform: fake, spriteName: "quiet-frog-5678")
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
         await model.refresh()
 
         await model.wakeToInspect()
@@ -69,7 +69,7 @@ struct SpriteDetailTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)
         await fake.setService(on: "quiet-frog-5678", Service(name: "custom", cmd: "/usr/bin/thing", args: []))
-        let model = SpriteDetailModel(platform: fake, spriteName: "quiet-frog-5678")
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
         await model.refresh()
         await model.wakeToInspect()
 
@@ -85,7 +85,7 @@ struct SpriteDetailTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)
         await fake.holdWakes()
-        let model = SpriteDetailModel(platform: fake, spriteName: "quiet-frog-5678")
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
         await model.refresh()
 
         let waking = Task { await model.wakeToInspect() }

@@ -9,18 +9,18 @@ public final class ServiceLogsModel {
     public private(set) var lastError: Error?
 
     private let platform: SpritesPlatform
-    private let spriteName: String
+    private let sprite: String
     private let serviceName: String
 
-    public init(platform: SpritesPlatform, spriteName: String, serviceName: String) {
+    public init(platform: SpritesPlatform, sprite: String, serviceName: String) {
         self.platform = platform
-        self.spriteName = spriteName
+        self.sprite = sprite
         self.serviceName = serviceName
     }
 
     public func load(lines: Int = 200) async {
         do {
-            logs = try await platform.serviceLogs(on: spriteName, named: serviceName, lines: lines)
+            logs = try await platform.serviceLogs(on: sprite, named: serviceName, lines: lines)
             lastError = nil
         } catch {
             lastError = error

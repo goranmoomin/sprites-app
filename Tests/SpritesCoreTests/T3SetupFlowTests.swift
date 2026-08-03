@@ -94,7 +94,7 @@ struct T3SetupFlowTests {
         #expect(try await fake.getSprite(named: Self.sprite).urlVisibility == .public)
 
         // Recognition now offers the handoff on the detail screen.
-        let detail = SpriteDetailModel(platform: fake, spriteName: Self.sprite)
+        let detail = SpriteDetailModel(platform: fake, sprite: Self.sprite)
         await detail.refresh()
         #expect(detail.actions?.contains { $0.id == "open-in-t3-code" } == true)
 

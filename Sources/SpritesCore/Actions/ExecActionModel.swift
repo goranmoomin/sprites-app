@@ -18,13 +18,13 @@ public final class ExecActionModel {
     public private(set) var lastError: Error?
 
     private let platform: SpritesPlatform
-    private let spriteName: String
+    private let sprite: String
     private var session: (any ExecSession)?
     private var nextChunkID = 0
 
-    public init(platform: SpritesPlatform, spriteName: String) {
+    public init(platform: SpritesPlatform, sprite: String) {
         self.platform = platform
-        self.spriteName = spriteName
+        self.sprite = sprite
     }
 
     public func run(_ commandLine: String) async {
@@ -39,7 +39,7 @@ public final class ExecActionModel {
         }
         do {
             let session = try await platform.exec(
-                on: spriteName, command: ExecCommand(["sh", "-c", commandLine]))
+                on: sprite, command: ExecCommand(["sh", "-c", commandLine]))
             self.session = session
             try await session.sendEOF()
             for await event in session.events {

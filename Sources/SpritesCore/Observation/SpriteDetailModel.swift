@@ -7,7 +7,7 @@ import Observation
 @MainActor
 @Observable
 public final class SpriteDetailModel {
-    public let spriteName: String
+    public let sprite: String
 
     public private(set) var metadata: SpriteMetadata?
     public private(set) var services: [Service]?
@@ -39,11 +39,11 @@ public final class SpriteDetailModel {
     private let integrations: [any Integration]
 
     public init(
-        platform: SpritesPlatform, spriteName: String, session: Session? = nil,
+        platform: SpritesPlatform, sprite: String, session: Session? = nil,
         integrations: [any Integration] = Integrations.all
     ) {
         self.platform = platform
-        self.spriteName = spriteName
+        self.sprite = sprite
         self.session = session
         self.integrations = integrations
     }
@@ -62,7 +62,7 @@ public final class SpriteDetailModel {
     /// Deletes the sprite on the platform. Returns true when confirmed.
     public func deleteSprite() async -> Bool {
         do {
-            try await platform.deleteSprite(named: spriteName)
+            try await platform.deleteSprite(named: sprite)
             return true
         } catch {
             lastError = error
@@ -73,7 +73,7 @@ public final class SpriteDetailModel {
 
     public func refresh() async {
         do {
-            metadata = try await platform.getSprite(named: spriteName)
+            metadata = try await platform.getSprite(named: sprite)
             lastError = nil
         } catch {
             lastError = error
@@ -90,7 +90,7 @@ public final class SpriteDetailModel {
         isWaking = true
         defer { isWaking = false }
         do {
-            try await platform.wake(sprite: spriteName)
+            try await platform.wake(sprite: sprite)
         } catch {
             lastError = error
             session?.handle(error)
@@ -117,7 +117,7 @@ public final class SpriteDetailModel {
         defer { if needsWake { isWaking = false } }
         do {
             try await platform.upsertTask(
-                on: spriteName, named: Self.keepAliveTaskName, expiringInSeconds: seconds)
+                on: sprite, named: Self.keepAliveTaskName, expiringInSeconds: seconds)
         } catch {
             lastError = error
             session?.handle(error)
@@ -127,7 +127,7 @@ public final class SpriteDetailModel {
 
     public func releaseKeepAlive() async {
         do {
-            try await platform.deleteTask(on: spriteName, named: Self.keepAliveTaskName)
+            try await platform.deleteTask(on: sprite, named: Self.keepAliveTaskName)
         } catch {
             lastError = error
             session?.handle(error)
@@ -168,7 +168,7 @@ public final class SpriteDetailModel {
     ) async {
         checkpointProgress = []
         do {
-            for try await event in try await operation(platform, spriteName) {
+            for try await event in try await operation(platform, sprite) {
                 checkpointProgress.append(event)
             }
         } catch {
@@ -204,7 +204,7 @@ public final class SpriteDetailModel {
 
     private func serviceOperation(_ operation: (SpritesPlatform, String) async throws -> Void) async {
         do {
-            try await operation(platform, spriteName)
+            try await operation(platform, sprite)
         } catch {
             lastError = error
             session?.handle(error)
@@ -214,9 +214,9 @@ public final class SpriteDetailModel {
 
     private func deepObserve() async {
         do {
-            services = try await platform.services(on: spriteName)
-            tasks = try await platform.listTasks(on: spriteName)
-            checkpoints = try await platform.checkpoints(on: spriteName)
+            services = try await platform.services(on: sprite)
+            tasks = try await platform.listTasks(on: sprite)
+            checkpoints = try await platform.checkpoints(on: sprite)
             try await observeIntegrations()
             lastError = nil
         } catch {
@@ -231,7 +231,7 @@ public final class SpriteDetailModel {
         var actions: [SpriteAction] = []
         for integration in integrations {
             let status = try await integration.observeStatus(
-                on: spriteName, services: services, platform: platform)
+                on: sprite, services: services, platform: platform)
             lines.append(IntegrationStatusLine(
                 id: integration.id, title: integration.displayName,
                 summary: status.summary, isReady: status.isReady))

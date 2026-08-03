@@ -73,7 +73,7 @@ struct InteractiveLoginTests {
         note("### TRANSCRIPT_TAIL \(ClaudeOutputParser.stripANSI(run.transcript).suffix(800).debugDescription)")
 
         // Observation: does the detail screen now see the login?
-        let detail = SpriteDetailModel(platform: platform, spriteName: sprite)
+        let detail = SpriteDetailModel(platform: platform, sprite: sprite)
         await detail.refresh()
         for line in detail.integrationLines ?? [] {
             note("### STATUS \(line.title): \(line.summary)")

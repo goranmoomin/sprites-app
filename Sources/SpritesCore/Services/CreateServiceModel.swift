@@ -19,11 +19,11 @@ public final class CreateServiceModel {
     public private(set) var errorMessage: String?
 
     private let platform: SpritesPlatform
-    private let spriteName: String
+    private let sprite: String
 
-    public init(platform: SpritesPlatform, spriteName: String) {
+    public init(platform: SpritesPlatform, sprite: String) {
         self.platform = platform
-        self.spriteName = spriteName
+        self.sprite = sprite
     }
 
     public var definition: ServiceDefinition {
@@ -49,7 +49,7 @@ public final class CreateServiceModel {
         errorMessage = nil
         do {
             let events = try await platform.upsertService(
-                on: spriteName, named: name, definition: definition)
+                on: sprite, named: name, definition: definition)
             for try await event in events {
                 progress.append(event)
                 if event.type == "error" {

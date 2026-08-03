@@ -53,7 +53,7 @@ public struct SpriteListView: View {
             }
             .navigationTitle("Sprites")
             .navigationDestination(for: String.self) { name in
-                SpriteDetailView(platform: platform, spriteName: name, session: session) {
+                SpriteDetailView(platform: platform, sprite: name, session: session) {
                     Task { await model.refresh() }
                 }
             }

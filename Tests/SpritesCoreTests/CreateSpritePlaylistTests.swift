@@ -56,7 +56,7 @@ struct CreateSpritePlaylistTests {
         #expect(playlist.isFinished)
         #expect(playlist.entries.allSatisfy { $0.status == .succeeded })
 
-        let detail = SpriteDetailModel(platform: fake, spriteName: Self.sprite)
+        let detail = SpriteDetailModel(platform: fake, sprite: Self.sprite)
         await detail.refresh()
         #expect(detail.integrationLines?.allSatisfy(\.isReady) == true)
         #expect(detail.actions?.contains { $0.id == "open-in-t3-code" } == true)
@@ -75,7 +75,7 @@ struct CreateSpritePlaylistTests {
 
         // The sprite is a perfectly ordinary sprite with everything left to
         // do (freshly created it is warm, so inspecting is an explicit wake).
-        let detail = SpriteDetailModel(platform: fake, spriteName: Self.sprite)
+        let detail = SpriteDetailModel(platform: fake, sprite: Self.sprite)
         await detail.refresh()
         await detail.wakeToInspect()
         #expect(detail.integrationLines?.isEmpty == false)
@@ -95,7 +95,7 @@ struct CreateSpritePlaylistTests {
         await responder.value
         // (playlist object abandoned here)
 
-        let detail = SpriteDetailModel(platform: fake, spriteName: Self.sprite)
+        let detail = SpriteDetailModel(platform: fake, sprite: Self.sprite)
         await detail.refresh()
         let lines = try #require(detail.integrationLines)
         #expect(lines.first { $0.title == "Claude Code" }?.isReady == true)

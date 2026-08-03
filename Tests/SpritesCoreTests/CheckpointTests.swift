@@ -9,7 +9,7 @@ struct CheckpointTests {
     private func makeModel() async -> (FakeSpritesPlatform, SpriteDetailModel) {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: Self.sprite, status: .running)
-        let model = SpriteDetailModel(platform: fake, spriteName: Self.sprite)
+        let model = SpriteDetailModel(platform: fake, sprite: Self.sprite)
         await model.refresh()
         return (fake, model)
     }

@@ -15,13 +15,13 @@ public struct SpriteDetailView: View {
     private let platform: SpritesPlatform
 
     public init(
-        platform: SpritesPlatform, spriteName: String, session: Session?,
+        platform: SpritesPlatform, sprite: String, session: Session?,
         onDeleted: @escaping () -> Void = {}
     ) {
         self.platform = platform
         self.onDeleted = onDeleted
         _model = State(initialValue: SpriteDetailModel(
-            platform: platform, spriteName: spriteName, session: session))
+            platform: platform, sprite: sprite, session: session))
     }
 
     public var body: some View {
@@ -48,17 +48,17 @@ public struct SpriteDetailView: View {
                 }
             }
         }
-        .navigationTitle(model.spriteName)
+        .navigationTitle(model.sprite)
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.refresh() }
         .refreshable { await model.refresh() }
         .sheet(isPresented: $showingCreateService) {
-            CreateServiceView(platform: platform, spriteName: model.spriteName) {
+            CreateServiceView(platform: platform, sprite: model.sprite) {
                 Task { await model.refresh() }
             }
         }
         .sheet(item: $activeFlow) { flow in
-            FlowRunView(flow: flow, platform: platform, sprite: model.spriteName) {
+            FlowRunView(flow: flow, platform: platform, sprite: model.sprite) {
                 Task { await model.refresh() }
             }
         }
@@ -81,7 +81,7 @@ public struct SpriteDetailView: View {
             Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
         }
         .confirmationDialog(
-            "Delete \(model.spriteName)?", isPresented: $confirmingDelete, titleVisibility: .visible
+            "Delete \(model.sprite)?", isPresented: $confirmingDelete, titleVisibility: .visible
         ) {
             Button("Delete Sprite", role: .destructive) {
                 Task {
@@ -180,7 +180,7 @@ public struct SpriteDetailView: View {
                 }
             }
             NavigationLink {
-                ExecActionView(platform: platform, spriteName: model.spriteName)
+                ExecActionView(platform: platform, sprite: model.sprite)
             } label: {
                 Label("Run command", systemImage: "terminal")
             }

@@ -13,8 +13,8 @@ struct CreateServiceView: View {
     @Environment(\.dismiss) private var dismiss
     let onCreated: () -> Void
 
-    init(platform: SpritesPlatform, spriteName: String, onCreated: @escaping () -> Void) {
-        _model = State(initialValue: CreateServiceModel(platform: platform, spriteName: spriteName))
+    init(platform: SpritesPlatform, sprite: String, onCreated: @escaping () -> Void) {
+        _model = State(initialValue: CreateServiceModel(platform: platform, sprite: sprite))
         self.onCreated = onCreated
     }
 

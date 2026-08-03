@@ -7,19 +7,19 @@ import SpritesCore
 struct CreateSpritePlaylistView: View {
     @State private var playlist: CreateSpritePlaylist
     @State private var runPresented = false
-    let spriteName: String
+    let sprite: String
     let onDone: () -> Void
 
-    init(platform: SpritesPlatform, spriteName: String, onDone: @escaping () -> Void) {
-        _playlist = State(initialValue: CreateSpritePlaylist(platform: platform, sprite: spriteName))
-        self.spriteName = spriteName
+    init(platform: SpritesPlatform, sprite: String, onDone: @escaping () -> Void) {
+        _playlist = State(initialValue: CreateSpritePlaylist(platform: platform, sprite: sprite))
+        self.sprite = sprite
         self.onDone = onDone
     }
 
     var body: some View {
         List {
             Section {
-                Label(spriteName, systemImage: "cube")
+                Label(sprite, systemImage: "cube")
             } footer: {
                 Text("Set up the sprite now, or skip any step and run it later from the sprite's screen.")
             }

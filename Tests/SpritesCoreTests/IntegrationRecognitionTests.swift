@@ -90,8 +90,8 @@ struct IntegrationRecognitionTests {
 
     @Test func t3DeclaresItsCodingAgentDependency() {
         let t3 = Integrations.t3Code
-        #expect(t3.role == .controlPlane)
-        #expect(t3.requirements.contains(.loggedInCodingAgent))
-        #expect(Integrations.claudeCode.role == .codingAgent)
+        #expect(t3.provides.contains(.controlPlane))
+        #expect(t3.requires.contains(.codingAgent))
+        #expect(Integrations.claudeCode.provides.contains(.codingAgent))
     }
 }

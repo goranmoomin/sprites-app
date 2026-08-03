@@ -5,8 +5,8 @@ import Foundation
 public struct T3CodeIntegration: Integration {
     public let id = "t3-code"
     public let displayName = "T3 Code"
-    public let role = IntegrationRole.controlPlane
-    public let requirements: [IntegrationRequirement] = [.loggedInCodingAgent]
+    public let provides: [Capability] = [.controlPlane]
+    public let requires: [Capability] = [.codingAgent]
 
     /// The official T3 Code app's URL scheme for the handoff.
     /// TODO: verify against the shipping T3 Code app (ticket 10 empirical check).

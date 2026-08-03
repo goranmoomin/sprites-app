@@ -63,12 +63,13 @@ public final class CreateSpritePlaylist {
     /// unmet. The returned run is driven by the caller (the flow UI).
     public func startEntry(_ id: String) async -> FlowRun? {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return nil }
-        if entries[index].integration.requirements.contains(.loggedInCodingAgent) {
-            let anyReady = await codingAgentReady()
-            guard anyReady else {
+        for capability in entries[index].integration.requires {
+            let satisfied = await Integrations.readyProvider(
+                of: capability, on: sprite, services: [], platform: platform) != nil
+            guard satisfied else {
                 entries[index].status = .blocked(
-                    "This needs a logged-in coding agent on the sprite. "
-                        + "Run the coding agent login first, or skip for now.")
+                    "This needs a ready \(capability.displayName) on the sprite. "
+                        + "Run the \(capability.displayName) entry first, or skip for now.")
                 return nil
             }
         }
@@ -102,18 +103,12 @@ public final class CreateSpritePlaylist {
 
     /// The entry that satisfies a blocked entry's dependency, if any.
     public func prerequisiteEntryID(for id: String) -> String? {
-        guard let entry = entries.first(where: { $0.id == id }),
-            entry.integration.requirements.contains(.loggedInCodingAgent)
-        else { return nil }
-        return entries.first { $0.integration.role == .codingAgent }?.id
-    }
-
-    private func codingAgentReady() async -> Bool {
-        for integration in Integrations.all where integration.role == .codingAgent {
-            let status = try? await integration.observeStatus(
-                on: sprite, services: [], platform: platform)
-            if status?.isReady == true { return true }
+        guard let entry = entries.first(where: { $0.id == id }) else { return nil }
+        for capability in entry.integration.requires {
+            if let provider = entries.first(where: { $0.integration.provides.contains(capability) }) {
+                return provider.id
+            }
         }
-        return false
+        return nil
     }
 }

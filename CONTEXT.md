@@ -24,10 +24,10 @@ First-party support for one third-party capability on a Sprite. Observes its own
 _Avoid_: Template, preset, service template
 
 **Coding agent**:
-Integration category that manages an Agent's login (Claude Code, Codex, Gemini CLI).
+Integration category that manages an Agent's login (Claude Code, Codex, Gemini CLI). Capability-derived: an integration is a coding agent because it provides the coding-agent capability.
 
 **Control plane**:
-Integration category that runs a Service exposing the Sprite to a client app (T3 Code, Claude Remote Control). May depend on coding-agent integrations.
+Integration category that runs a Service exposing the Sprite to a client app (T3 Code, Claude Remote Control). Capability-derived: provides the control-plane capability, and may require the coding-agent one.
 
 **Flow**:
 A guided, possibly interactive, multi-step operation an Integration offers on a Sprite (log in to Claude, set up t3 serve, pair with T3 Code). Steps prefer non-interactive exec; interactive steps drive a PTY headlessly behind native UI. Flows are always launchable from the detail screen; the create-sprite wizard is only a name plus a skippable playlist of ordinary Flows.

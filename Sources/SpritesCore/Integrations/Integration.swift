@@ -1,16 +1,20 @@
 import Foundation
 
-/// Integration category: one integration per role, not per product.
-public enum IntegrationRole: String, Sendable, Equatable {
+/// Integration category from CONTEXT.md, expressed as a capability an
+/// integration provides on a Sprite or requires from other integrations.
+public enum Capability: Sendable, Equatable {
     /// Manages an Agent's login on a Sprite (Claude Code, Codex, Gemini CLI).
     case codingAgent
     /// Runs a Service exposing the Sprite to a client app (T3 Code).
     case controlPlane
-}
 
-/// A cross-integration dependency, declared not implied.
-public enum IntegrationRequirement: Sendable, Equatable {
-    case loggedInCodingAgent
+    /// Human-readable category name, e.g. in blocked-entry explanations.
+    public var displayName: String {
+        switch self {
+        case .codingAgent: "coding agent"
+        case .controlPlane: "control plane"
+        }
+    }
 }
 
 /// One integration's observed status on one Sprite (never app-side memory).
@@ -45,8 +49,8 @@ public struct SpriteAction: Sendable, Equatable, Identifiable {
 public protocol Integration: Sendable {
     var id: String { get }
     var displayName: String { get }
-    var role: IntegrationRole { get }
-    var requirements: [IntegrationRequirement] { get }
+    var provides: [Capability] { get }
+    var requires: [Capability] { get }
 
     /// Command-match recognizer. Service names are ignored.
     func recognizes(_ service: Service) -> Bool
@@ -64,4 +68,22 @@ public enum Integrations {
     public static let claudeCode = ClaudeCodeIntegration()
     public static let t3Code = T3CodeIntegration()
     public static var all: [any Integration] { [claudeCode, t3Code] }
+
+    /// The one place capability satisfaction is computed: a required
+    /// capability is met when some integration providing it is observed
+    /// ready on the sprite (deep observation, never app-side memory).
+    public static func readyProvider(
+        of capability: Capability, on sprite: String, services: [Service],
+        platform: SpritesPlatform, among integrations: [any Integration] = Integrations.all
+    ) async -> (integration: any Integration, status: IntegrationStatus)? {
+        for integration in integrations where integration.provides.contains(capability) {
+            guard
+                let status = try? await integration.observeStatus(
+                    on: sprite, services: services, platform: platform),
+                status.isReady
+            else { continue }
+            return (integration, status)
+        }
+        return nil
+    }
 }

@@ -49,16 +49,14 @@ struct RequireCodingAgentStep: FlowStep {
     let title = "Check coding agent login"
 
     func run(in context: FlowContext) async throws {
-        for integration in Integrations.all where integration.role == .codingAgent {
-            let status = try await integration.observeStatus(
-                on: context.sprite, services: [], platform: context.platform)
-            if status.isReady {
-                context.output("\(integration.displayName): \(status.summary)\n")
-                return
-            }
+        guard
+            let ready = await Integrations.readyProvider(
+                of: .codingAgent, on: context.sprite, services: [], platform: context.platform)
+        else {
+            throw FlowError.failed(
+                "No coding agent is logged in on this sprite. Run the Claude Code login Flow first.")
         }
-        throw FlowError.failed(
-            "No coding agent is logged in on this sprite. Run the Claude Code login Flow first.")
+        context.output("\(ready.integration.displayName): \(ready.status.summary)\n")
     }
 }
 

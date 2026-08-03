@@ -5,8 +5,8 @@ import Foundation
 public struct ClaudeCodeIntegration: Integration {
     public let id = "claude-code"
     public let displayName = "Claude Code"
-    public let role = IntegrationRole.codingAgent
-    public let requirements: [IntegrationRequirement] = []
+    public let provides: [Capability] = [.codingAgent]
+    public let requires: [Capability] = []
 
     /// Where the claude CLI stores OAuth credentials on the sprite.
     public static let credentialsPath = "/home/sprite/.claude/.credentials.json"

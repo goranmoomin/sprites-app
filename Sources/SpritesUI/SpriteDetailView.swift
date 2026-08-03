@@ -173,16 +173,18 @@ public struct SpriteDetailView: View {
 
         Section("Actions") {
             ForEach(model.actions ?? []) { action in
-                Button(action.title) {
-                    if let url = action.url {
+                switch action.kind {
+                case .openURL(let url):
+                    Button(action.title) {
                         openURL(url)
                     }
+                case .runCommand:
+                    NavigationLink {
+                        ExecActionView(platform: platform, sprite: model.sprite)
+                    } label: {
+                        Text(action.title)
+                    }
                 }
-            }
-            NavigationLink {
-                ExecActionView(platform: platform, sprite: model.sprite)
-            } label: {
-                Label("Run command", systemImage: "terminal")
             }
         }
 

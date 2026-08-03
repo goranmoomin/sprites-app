@@ -30,19 +30,6 @@ public struct IntegrationStatus: Sendable, Equatable {
     }
 }
 
-/// A one-tap operation on the sprite detail screen.
-public struct SpriteAction: Sendable, Equatable, Identifiable {
-    public var id: String
-    public var title: String
-    public var url: URL?
-
-    public init(id: String, title: String, url: URL? = nil) {
-        self.id = id
-        self.title = title
-        self.url = url
-    }
-}
-
 /// First-party support for one third-party capability on a Sprite: observes
 /// its own status, recognizes Services as its instances by command match,
 /// and contributes Actions. Flows are added per integration.

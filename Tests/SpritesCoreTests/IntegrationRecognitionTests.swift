@@ -25,7 +25,14 @@ struct IntegrationRecognitionTests {
 
         let t3Line = model.integrationLines?.first { $0.title == "T3 Code" }
         #expect(t3Line?.summary == "service running")
-        #expect(model.actions?.contains { $0.id == "open-in-t3-code" } == true)
+        // One uniform list: the integration's handoff plus the app's own
+        // Run command contribution.
+        #expect(model.actions == [
+            SpriteAction(
+                id: "open-in-t3-code", title: "Open in T3 Code",
+                kind: .openURL(T3CodeIntegration.appURL)),
+            SpriteAction(id: "run-command", title: "Run command", kind: .runCommand),
+        ])
     }
 
     @Test func recognitionIsByCommandMatchNotServiceName() async throws {
@@ -40,7 +47,9 @@ struct IntegrationRecognitionTests {
 
         let service = try #require(model.services?.first)
         #expect(model.isCustom(service))
-        #expect(model.actions?.contains { $0.id == "open-in-t3-code" } != true)
+        #expect(model.actions == [
+            SpriteAction(id: "run-command", title: "Run command", kind: .runCommand)
+        ])
     }
 
     @Test func nearMissCommandsStayCustom() async throws {

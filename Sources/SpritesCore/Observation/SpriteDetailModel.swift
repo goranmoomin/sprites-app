@@ -237,6 +237,9 @@ public final class SpriteDetailModel {
                 summary: status.summary, isReady: status.isReady))
             actions.append(contentsOf: integration.actions(services: services, metadata: metadata))
         }
+        // The app's own contribution to the same list: the one-shot exec
+        // sheet behind Run command.
+        actions.append(SpriteAction(id: "run-command", title: "Run command", kind: .runCommand))
         integrationLines = lines
         self.actions = actions
     }

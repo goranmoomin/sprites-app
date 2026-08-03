@@ -34,7 +34,7 @@ A guided, possibly interactive, multi-step operation an Integration offers on a 
 _Avoid_: Wizard, onboarding, operation
 
 **Action**:
-A one-tap operation on the sprite detail screen (Open in T3 Code, SSH).
+A one-tap operation on the sprite detail screen (Open in T3 Code, Run command, SSH).
 
 **Keep-alive**:
 A named platform task our app holds on the user's behalf to stop a Sprite from pausing. Not an abstraction: one Keep-alive is one task, max 1h, extended or released explicitly from the detail screen.

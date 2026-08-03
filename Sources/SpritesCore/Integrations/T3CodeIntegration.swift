@@ -43,6 +43,6 @@ public struct T3CodeIntegration: Integration {
 
     public func actions(services: [Service], metadata: SpriteMetadata?) -> [SpriteAction] {
         guard services.contains(where: recognizes) else { return [] }
-        return [SpriteAction(id: "open-in-t3-code", title: "Open in T3 Code", url: Self.appURL)]
+        return [SpriteAction(id: "open-in-t3-code", title: "Open in T3 Code", kind: .openURL(Self.appURL))]
     }
 }

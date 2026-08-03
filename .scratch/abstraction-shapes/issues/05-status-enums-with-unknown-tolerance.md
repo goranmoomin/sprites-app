@@ -4,9 +4,13 @@
 
 **Blocked by:** 01 — rename lands first so this diff is clean.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `ServiceStatus` covers the five documented values; `SpriteStatus` covers cold/warm/running; both have an `unknown(String)` case
-- [ ] Decoding a novel status value succeeds and surfaces the raw string verbatim in the UI
-- [ ] No string-literal status comparisons remain in Sources or Tests
-- [ ] Integration recognition, service controls, and detail-screen readiness behave exactly as before
+- [x] `ServiceStatus` covers the five documented values; `SpriteStatus` covers cold/warm/running; both have an `unknown(String)` case
+- [x] Decoding a novel status value succeeds and surfaces the raw string verbatim in the UI
+- [x] No string-literal status comparisons remain in Sources or Tests
+- [x] Integration recognition, service controls, and detail-screen readiness behave exactly as before
+
+## Answer
+
+Implemented in commit 5653c1a. `ServiceStatus` (stopped/starting/running/stopping/failed) and `SpriteStatus` (cold/warm/running) both fold unrecognized wire values into `.unknown(String)` via `init(wire:)` and display them verbatim via `display`. A replay fixture with a novel "hibernating" status proves the decode survives; no string-literal status comparisons remain.

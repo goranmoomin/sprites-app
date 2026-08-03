@@ -4,9 +4,13 @@
 
 **Blocked by:** 01 — rename lands first so this diff is clean.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `T3Pairing` is defined alongside the T3 integration; no `Pairing` type remains in the shared Flow vocabulary
-- [ ] The prompt case is `.t3Pairing(T3Pairing)`; `.consent` and `.openURLAndEnterCode` are unchanged
-- [ ] T3 setup and pair-again Flows render the pairing screen exactly as before
-- [ ] Tests referencing the old names are updated and pass
+- [x] `T3Pairing` is defined alongside the T3 integration; no `Pairing` type remains in the shared Flow vocabulary
+- [x] The prompt case is `.t3Pairing(T3Pairing)`; `.consent` and `.openURLAndEnterCode` are unchanged
+- [x] T3 setup and pair-again Flows render the pairing screen exactly as before
+- [x] Tests referencing the old names are updated and pass
+
+## Answer
+
+Implemented in commit ac00990. `T3Pairing` now lives in `T3CodeSetupFlow.swift` beside `CreatePairingStep`; the prompt case is `.t3Pairing(T3Pairing)` and the shared Flow vocabulary keeps only `.consent` and `.openURLAndEnterCode` unprefixed. Rendering unchanged.

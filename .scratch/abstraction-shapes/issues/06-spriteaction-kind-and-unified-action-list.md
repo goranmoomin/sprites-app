@@ -13,10 +13,14 @@ The detail screen renders one uniform action list: integrations contribute `.ope
 
 **Blocked by:** 01 — rename lands first so this diff is clean.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `SpriteAction` lives in the Actions area with a non-optional `Kind`; no optional URL remains
-- [ ] Open in T3 Code and Run command appear in the same action list on the detail screen
-- [ ] Tapping Run command presents the exec sheet with streaming output, exit code, and cancel, as before
-- [ ] CONTEXT.md's Action entry lists Run command as an example
-- [ ] Action contribution is covered by tests asserting on action data equality
+- [x] `SpriteAction` lives in the Actions area with a non-optional `Kind`; no optional URL remains
+- [x] Open in T3 Code and Run command appear in the same action list on the detail screen
+- [x] Tapping Run command presents the exec sheet with streaming output, exit code, and cancel, as before
+- [x] CONTEXT.md's Action entry lists Run command as an example
+- [x] Action contribution is covered by tests asserting on action data equality
+
+## Answer
+
+Implemented in commit 5f24ebe. `SpriteAction` moved to `Sources/SpritesCore/Actions/SpriteAction.swift` with a non-optional `Kind` (`.openURL(URL)`/`.runCommand`); the model appends the app's Run command entry so the detail screen renders one uniform list, with the exec sheet unchanged behind it. CONTEXT.md's Action entry lists Run command; recognition tests assert on action data equality.

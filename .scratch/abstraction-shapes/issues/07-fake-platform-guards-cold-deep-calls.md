@@ -4,9 +4,13 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The fake platform fails loudly when a deep call hits a cold, never-woken Sprite
-- [ ] Explicit wake and Keep-alive paths still pass; Flow and Action tests still pass
-- [ ] A test demonstrates the violation being caught
-- [ ] The full existing suite remains green
+- [x] The fake platform fails loudly when a deep call hits a cold, never-woken Sprite
+- [x] Explicit wake and Keep-alive paths still pass; Flow and Action tests still pass
+- [x] A test demonstrates the violation being caught
+- [x] The full existing suite remains green
+
+## Answer
+
+Implemented in commit c9a0d99. `FakeSpritesPlatform.deepTouch` throws `ColdDeepCallViolation` when a deep call hits a cold sprite outside the `explicitlyWoken` set; `wake()` and task upserts (Keep-alive) register knowing wakes. `ColdDeepCallTripwireTests` proves the tripwire fires and that wake and Keep-alive paths still pass; the full suite stays green.

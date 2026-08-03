@@ -4,9 +4,13 @@
 
 **Blocked by:** 02 — both reshape the Integration protocol; flows are written against the final capability-bearing protocol.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The Integration protocol has a flows method; the detail view contains no per-integration flow conditions
-- [ ] The detail screen offers the same three Flows under the same conditions as before (login when not logged in, setup when not ready, pair-again when a t3 service is recognized)
-- [ ] Offered Flows come from the model's injected integrations; a fake integration's Flows appear when injected
-- [ ] Flow offering is covered by tests against the fake platform
+- [x] The Integration protocol has a flows method; the detail view contains no per-integration flow conditions
+- [x] The detail screen offers the same three Flows under the same conditions as before (login when not logged in, setup when not ready, pair-again when a t3 service is recognized)
+- [x] Offered Flows come from the model's injected integrations; a fake integration's Flows appear when injected
+- [x] Flow offering is covered by tests against the fake platform
+
+## Answer
+
+Implemented in commit 248147c. The protocol gains `flows(status:services:metadata:)`; Claude Code and T3 own their offering rules, `SpriteDetailModel.offeredFlows` collects them in registry order from the injected integrations, and the detail view renders that list (no registry consultation left in SpritesUI). Covered by `FlowOfferingTests`, including an injected fake integration.

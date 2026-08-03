@@ -4,8 +4,12 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] No `spriteName` identifier remains in Sources or Tests
-- [ ] Core models and UI expose the handle as `sprite`
-- [ ] The full test suite passes unchanged in behavior
+- [x] No `spriteName` identifier remains in Sources or Tests
+- [x] Core models and UI expose the handle as `sprite`
+- [x] The full test suite passes unchanged in behavior
+
+## Answer
+
+Implemented in commit fc6cee1. Mechanical rename across Sources, Tests, and UI; no `spriteName` identifier remains and the suite passes unchanged.

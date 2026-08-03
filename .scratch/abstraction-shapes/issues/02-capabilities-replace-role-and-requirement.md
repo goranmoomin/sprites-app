@@ -4,11 +4,15 @@
 
 **Blocked by:** 01 — rename lands first so this diff is clean.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Capability` is a closed enum; `IntegrationRole` and `IntegrationRequirement` no longer exist
-- [ ] Integrations declare provides/requires; satisfaction ("some provider observed ready") lives in one core function
-- [ ] The playlist still refuses to start the T3 entry before a coding agent is ready and still points at the Claude entry as the prerequisite
-- [ ] The T3 setup Flow's guard step still fails cleanly when no coding agent is logged in
-- [ ] CONTEXT.md reflects the capability-derived categories
-- [ ] Existing playlist and integration tests pass, rewritten only where they named the old enums
+- [x] `Capability` is a closed enum; `IntegrationRole` and `IntegrationRequirement` no longer exist
+- [x] Integrations declare provides/requires; satisfaction ("some provider observed ready") lives in one core function
+- [x] The playlist still refuses to start the T3 entry before a coding agent is ready and still points at the Claude entry as the prerequisite
+- [x] The T3 setup Flow's guard step still fails cleanly when no coding agent is logged in
+- [x] CONTEXT.md reflects the capability-derived categories
+- [x] Existing playlist and integration tests pass, rewritten only where they named the old enums
+
+## Answer
+
+Implemented in commit fa8e573. `Capability` (`.codingAgent`, `.controlPlane`) with `provides`/`requires` on the Integration protocol; satisfaction lives in `Integrations.readyProvider(of:on:services:platform:among:)`, used by both the playlist gate and the T3 guard step. `IntegrationRole` and `IntegrationRequirement` deleted; CONTEXT.md notes the categories are capability-derived.

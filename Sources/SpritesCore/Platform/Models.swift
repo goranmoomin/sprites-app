@@ -1,10 +1,68 @@
 import Foundation
 
-/// Platform status of a Sprite as reported by shallow observation.
-public enum SpriteStatus: String, Sendable, Codable {
+/// Platform status of a Sprite as reported by shallow observation. Closed
+/// over the documented values; an unrecognized wire value folds into
+/// `.unknown` and is shown verbatim instead of failing the decode
+/// (ADR 0001: show what was observed).
+public enum SpriteStatus: Sendable, Equatable {
     case cold
     case warm
     case running
+    case unknown(String)
+
+    public init(wire: String) {
+        switch wire {
+        case "cold": self = .cold
+        case "warm": self = .warm
+        case "running": self = .running
+        default: self = .unknown(wire)
+        }
+    }
+
+    /// The wire string, verbatim for unknown values; what the UI shows.
+    public var display: String {
+        switch self {
+        case .cold: "cold"
+        case .warm: "warm"
+        case .running: "running"
+        case .unknown(let raw): raw
+        }
+    }
+}
+
+/// Status of a Service's supervised process, over the platform's documented
+/// set. An unrecognized wire value folds into `.unknown` and is shown
+/// verbatim instead of failing the whole services response.
+public enum ServiceStatus: Sendable, Equatable {
+    case stopped
+    case starting
+    case running
+    case stopping
+    case failed
+    case unknown(String)
+
+    public init(wire: String) {
+        switch wire {
+        case "stopped": self = .stopped
+        case "starting": self = .starting
+        case "running": self = .running
+        case "stopping": self = .stopping
+        case "failed": self = .failed
+        default: self = .unknown(wire)
+        }
+    }
+
+    /// The wire string, verbatim for unknown values; what the UI shows.
+    public var display: String {
+        switch self {
+        case .stopped: "stopped"
+        case .starting: "starting"
+        case .running: "running"
+        case .stopping: "stopping"
+        case .failed: "failed"
+        case .unknown(let raw): raw
+        }
+    }
 }
 
 /// URL auth setting of a Sprite (private / public).
@@ -32,7 +90,7 @@ public struct SpriteMetadata: Sendable, Equatable, Identifiable {
 
 /// The observed state of a Service's supervised process.
 public struct ServiceState: Sendable, Equatable {
-    public var status: String
+    public var status: ServiceStatus
     public var pid: Int?
     public var startedAt: Date?
     public var error: String?
@@ -40,7 +98,7 @@ public struct ServiceState: Sendable, Equatable {
     public var nextRestartAt: Date?
 
     public init(
-        status: String, pid: Int? = nil, startedAt: Date? = nil, error: String? = nil,
+        status: ServiceStatus, pid: Int? = nil, startedAt: Date? = nil, error: String? = nil,
         restartCount: Int? = nil, nextRestartAt: Date? = nil
     ) {
         self.status = status

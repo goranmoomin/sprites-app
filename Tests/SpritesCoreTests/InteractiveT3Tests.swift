@@ -64,7 +64,7 @@ struct InteractiveT3Tests {
         }
         note("### ACTIONS \((detail.actions ?? []).map(\.id))")
         for service in detail.services ?? [] {
-            note("### SERVICE \(service.name) custom=\(detail.isCustom(service)) state=\(service.state?.status ?? "?")")
+            note("### SERVICE \(service.name) custom=\(detail.isCustom(service)) state=\(service.state?.status.display ?? "?")")
         }
         note("### URL_VISIBILITY \(detail.metadata?.urlVisibility.rawValue ?? "?")")
 

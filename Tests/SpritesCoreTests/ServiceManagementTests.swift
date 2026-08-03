@@ -10,6 +10,12 @@ struct ServiceManagementTests {
         return fake
     }
 
+    @Test func novelServiceStatusFoldsToUnknownShownVerbatim() {
+        let status = ServiceStatus(wire: "paused")
+        #expect(status == .unknown("paused"))
+        #expect(status.display == "paused")
+    }
+
     @Test func createServiceFormMapsOneToOneToThePlatformDefinition() async throws {
         let fake = await makeFake()
         let model = CreateServiceModel(platform: fake, sprite: "morning-cherry-1234")
@@ -50,20 +56,20 @@ struct ServiceManagementTests {
         let fake = await makeFake()
         await fake.setService(
             on: "morning-cherry-1234",
-            Service(name: "svc", cmd: "/bin/thing", args: [], state: ServiceState(status: "stopped")))
+            Service(name: "svc", cmd: "/bin/thing", args: [], state: ServiceState(status: .stopped)))
         let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
         await model.refresh()
 
         await model.startService("svc")
-        #expect(model.services?.first?.state?.status == "running")
+        #expect(model.services?.first?.state?.status == .running)
 
         await model.stopService("svc")
-        #expect(model.services?.first?.state?.status == "stopped")
+        #expect(model.services?.first?.state?.status == .stopped)
 
         // The documented restart endpoint 404s; restart is stop+start.
         await model.startService("svc")
         await model.restartService("svc")
-        #expect(model.services?.first?.state?.status == "running")
+        #expect(model.services?.first?.state?.status == .running)
     }
 
     @Test func crashLoopingServiceSurfacesObservedFailureState() async throws {
@@ -72,14 +78,14 @@ struct ServiceManagementTests {
         await fake.setService(
             on: "morning-cherry-1234",
             Service(name: "t3", cmd: "/bin/t3", args: ["serve"],
-                    state: ServiceState(status: "failed", error: "exited with code 1",
+                    state: ServiceState(status: .failed, error: "exited with code 1",
                                         restartCount: 4, nextRestartAt: nextRestart)))
         let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
 
         let state = try #require(model.services?.first?.state)
-        #expect(state.status == "failed")
+        #expect(state.status == .failed)
         #expect(state.error == "exited with code 1")
         #expect(state.restartCount == 4)
         #expect(state.nextRestartAt == nextRestart)

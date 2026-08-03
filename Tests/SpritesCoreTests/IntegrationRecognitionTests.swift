@@ -18,7 +18,7 @@ struct IntegrationRecognitionTests {
             on: "morning-cherry-1234",
             Service(name: "anything-at-all", cmd: "/home/sprite/.local/bin/t3",
                     args: ["serve", "--host", "0.0.0.0", "--port", "3773"],
-                    state: ServiceState(status: "running", pid: 42)))
+                    state: ServiceState(status: .running, pid: 42)))
         let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()

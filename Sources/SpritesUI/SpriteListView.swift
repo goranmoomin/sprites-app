@@ -102,7 +102,7 @@ struct SpriteRow: View {
         HStack {
             Text(sprite.name)
             Spacer()
-            Text(sprite.status.rawValue)
+            Text(sprite.status.display)
                 .foregroundStyle(.secondary)
             Image(systemName: "circle.fill")
                 .font(.caption2)
@@ -115,6 +115,7 @@ struct SpriteRow: View {
         case .cold: .gray
         case .warm: .orange
         case .running: .green
+        case .unknown: .secondary
         }
     }
 }

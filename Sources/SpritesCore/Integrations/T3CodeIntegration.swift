@@ -34,10 +34,10 @@ public struct T3CodeIntegration: Integration {
         // The installed version is observable, never remembered.
         let version = try? await installedVersion(on: sprite, platform: platform)
         let suffix = version.flatMap { $0 }.map { " (v\($0))" } ?? ""
-        if recognized.contains(where: { $0.state?.status == "running" }) {
+        if recognized.contains(where: { $0.state?.status == .running }) {
             return IntegrationStatus(summary: "service running" + suffix, isReady: true)
         }
-        let status = recognized.first?.state?.status ?? "not running"
+        let status = recognized.first?.state?.status.display ?? "not running"
         return IntegrationStatus(summary: "service \(status)" + suffix, isReady: false)
     }
 

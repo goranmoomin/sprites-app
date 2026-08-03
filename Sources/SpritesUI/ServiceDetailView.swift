@@ -33,7 +33,7 @@ struct ServiceDetailView: View {
 
                 if let state = service.state {
                     Section("State") {
-                        LabeledContent("Status", value: state.status)
+                        LabeledContent("Status", value: state.status.display)
                         if let pid = state.pid {
                             LabeledContent("PID", value: String(pid))
                         }
@@ -50,7 +50,7 @@ struct ServiceDetailView: View {
                 }
 
                 Section {
-                    if service.state?.status == "running" {
+                    if service.state?.status == .running {
                         Button("Stop") {
                             Task { await model.stopService(serviceName) }
                         }

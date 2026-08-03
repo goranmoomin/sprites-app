@@ -27,6 +27,16 @@ struct HTTPSpritesPlatformTests {
         ])
     }
 
+    @Test(.replay("listSpritesNovelStatus", matching: [.method, .url, .headers(["Authorization"])], filters: [], scope: .test))
+    func novelStatusValueDecodesToUnknownShownVerbatim() async throws {
+        let platform = HTTPSpritesPlatform(token: "test-token", session: Replay.session)
+
+        let sprites = try await platform.listSprites()
+
+        #expect(sprites.first?.status == .unknown("hibernating"))
+        #expect(sprites.first?.status.display == "hibernating")
+    }
+
     @Test(.replay("listSpritesUnauthorized", matching: [.method, .url], filters: [], scope: .test))
     func http401SurfacesAsUnauthorized() async throws {
         let platform = HTTPSpritesPlatform(token: "revoked-token", session: Replay.session)

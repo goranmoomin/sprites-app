@@ -144,7 +144,7 @@ struct T3SetupFlowTests {
         await fake.setService(
             on: Self.sprite,
             Service(name: "t3", cmd: "/home/sprite/.local/bin/t3",
-                    args: ["serve", "--host", "0.0.0.0"], state: ServiceState(status: "running", pid: 7)))
+                    args: ["serve", "--host", "0.0.0.0"], state: ServiceState(status: .running, pid: 7)))
         try await fake.setURLVisibility(sprite: Self.sprite, .public)
 
         let run = FlowRun(flow: Integrations.t3Code.pairAgainFlow(), platform: fake, sprite: Self.sprite)

@@ -237,7 +237,7 @@ public actor FakeSpritesPlatform: SpritesPlatform {
             Service(
                 name: name, cmd: definition.cmd, args: definition.args, dir: definition.dir,
                 env: definition.env, httpPort: definition.httpPort, needs: definition.needs,
-                state: ServiceState(status: "running", pid: 1000 + (services[sprite]?.count ?? 0))))
+                state: ServiceState(status: .running, pid: 1000 + (services[sprite]?.count ?? 0))))
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: ServiceUpsertEvent.self)
         continuation.yield(ServiceUpsertEvent(type: "started", message: "starting \(name)"))
         continuation.yield(ServiceUpsertEvent(type: "complete", message: "service \(name) running"))
@@ -245,22 +245,22 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         return stream
     }
 
-    private func setServiceStatus(on sprite: String, named name: String, _ status: String) throws {
+    private func setServiceStatus(on sprite: String, named name: String, _ status: ServiceStatus) throws {
         guard let index = services[sprite]?.firstIndex(where: { $0.name == name }) else {
             throw PlatformError.notFound
         }
         services[sprite]![index].state = ServiceState(
-            status: status, pid: status == "running" ? 1234 : nil)
+            status: status, pid: status == .running ? 1234 : nil)
     }
 
     public func startService(on sprite: String, named name: String) async throws {
         _ = try deepTouch(sprite)
-        try setServiceStatus(on: sprite, named: name, "running")
+        try setServiceStatus(on: sprite, named: name, .running)
     }
 
     public func stopService(on sprite: String, named name: String) async throws {
         _ = try deepTouch(sprite)
-        try setServiceStatus(on: sprite, named: name, "stopped")
+        try setServiceStatus(on: sprite, named: name, .stopped)
     }
 
     public func deleteService(on sprite: String, named name: String) async throws {

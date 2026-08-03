@@ -91,17 +91,17 @@ struct LivePlatformSmokeTests {
             try await platform.services(on: Self.sprite).first { $0.name == "live-smoke-svc" })
         #expect(service.cmd == "/usr/bin/python3")
         #expect(service.args == ["-u", "-m", "http.server", "18123"])
-        #expect(service.state?.status == "running")
+        #expect(service.state?.status == .running)
 
         try await platform.stopService(on: Self.sprite, named: "live-smoke-svc")
         service = try #require(
             try await platform.services(on: Self.sprite).first { $0.name == "live-smoke-svc" })
-        #expect(service.state?.status != "running")
+        #expect(service.state?.status != .running)
 
         try await platform.startService(on: Self.sprite, named: "live-smoke-svc")
         service = try #require(
             try await platform.services(on: Self.sprite).first { $0.name == "live-smoke-svc" })
-        #expect(service.state?.status == "running")
+        #expect(service.state?.status == .running)
 
         let logs = try await platform.serviceLogs(on: Self.sprite, named: "live-smoke-svc", lines: 50)
         #expect(!logs.isEmpty)

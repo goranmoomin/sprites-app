@@ -29,7 +29,7 @@ struct SpriteDetailTests {
         await fake.setService(
             on: "morning-cherry-1234",
             Service(name: "t3", cmd: "/home/sprite/.local/bin/t3",
-                    args: ["serve", "--host", "0.0.0.0"], state: ServiceState(status: "running", pid: 123))
+                    args: ["serve", "--host", "0.0.0.0"], state: ServiceState(status: .running, pid: 123))
         )
         await fake.setTask(
             on: "morning-cherry-1234",

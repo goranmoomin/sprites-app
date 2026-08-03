@@ -116,7 +116,7 @@ public struct SpriteDetailView: View {
 
     private var statusSection: some View {
         Section("Status") {
-            LabeledContent("Status", value: model.metadata?.status.rawValue ?? "...")
+            LabeledContent("Status", value: model.metadata?.status.display ?? "...")
             if let url = model.metadata?.url {
                 LabeledContent("URL") {
                     Text(url.absoluteString)
@@ -199,7 +199,7 @@ public struct SpriteDetailView: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                             if let state = service.state {
-                                Text(state.status + (state.pid.map { " (pid \($0))" } ?? ""))
+                                Text(state.status.display + (state.pid.map { " (pid \($0))" } ?? ""))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

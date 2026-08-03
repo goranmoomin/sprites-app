@@ -133,7 +133,7 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
             env: wire.env, httpPort: wire.http_port, needs: wire.needs,
             state: wire.state.map {
                 ServiceState(
-                    status: $0.status, pid: $0.pid, startedAt: $0.started_at, error: $0.error,
+                    status: ServiceStatus(wire: $0.status), pid: $0.pid, startedAt: $0.started_at, error: $0.error,
                     restartCount: $0.restart_count, nextRestartAt: $0.next_restart_at)
             }
         )
@@ -142,7 +142,7 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
     private func metadata(from wire: WireSprite) -> SpriteMetadata {
         SpriteMetadata(
             name: wire.name,
-            status: SpriteStatus(rawValue: wire.status) ?? .cold,
+            status: SpriteStatus(wire: wire.status),
             url: wire.url,
             urlVisibility: wire.url_settings?.auth == "public" ? .public : .private
         )

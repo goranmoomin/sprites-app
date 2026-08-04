@@ -1,5 +1,12 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 import PackageDescription
+
+// See: https://www.massicotte.org/blog/what-settings/
+let swiftSettings: [SwiftSetting] = [
+    // Approachable Concurrency
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+]
 
 let package = Package(
     name: "Sprites",
@@ -12,15 +19,20 @@ let package = Package(
         .package(url: "https://github.com/mattt/Replay.git", from: "0.4.0")
     ],
     targets: [
-        .target(name: "SpritesCore"),
-        .target(name: "SpritesUI", dependencies: ["SpritesCore"]),
+        .target(name: "SpritesCore", swiftSettings: swiftSettings),
+        .target(
+            name: "SpritesUI",
+            dependencies: ["SpritesCore"],
+            swiftSettings: swiftSettings,
+        ),
         .testTarget(
             name: "SpritesCoreTests",
             dependencies: [
                 "SpritesCore",
                 .product(name: "Replay", package: "Replay"),
             ],
-            resources: [.copy("Replays")]
+            resources: [.copy("Replays")],
+            swiftSettings: swiftSettings,
         ),
     ]
 )

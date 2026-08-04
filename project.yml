@@ -16,6 +16,8 @@ targets:
       - package: Sprites
         product: SpritesUI
     settings:
+      SWIFT_VERSION: "6.0"
+      SWIFT_APPROACHABLE_CONCURRENCY: YES
       GENERATE_INFOPLIST_FILE: YES
       # Without a launch screen iOS letterboxes the app to legacy size.
       INFOPLIST_KEY_UILaunchScreen_Generation: YES

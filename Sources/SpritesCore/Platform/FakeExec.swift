@@ -96,7 +96,7 @@ public final class FakeExecIO: Sendable {
     }
 }
 
-public final class FakeExecSession: ExecSession, @unchecked Sendable {
+public final class FakeExecSession: ExecSession, Sendable {
     public let events: AsyncStream<ExecEvent>
     private let inputContinuation: AsyncStream<Data>.Continuation
     private let eventsContinuation: AsyncStream<ExecEvent>.Continuation

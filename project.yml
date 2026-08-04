@@ -1,4 +1,8 @@
 name: SpritesApp
+fileTypes:
+  # Treat the .icon package as an opaque resource, not a group to recurse into.
+  icon:
+    file: true
 packages:
   Sprites:
     path: .

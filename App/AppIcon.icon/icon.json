@@ -1,0 +1,82 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "extended-srgb:1.000,1.000,1.000,1.000",
+          "extended-srgb:0.929,0.914,0.996,1.000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "extended-srgb:0.165,0.141,0.251,1.000",
+          "extended-srgb:0.090,0.078,0.122,1.000"
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill": {
+            "solid": "extended-srgb:0.000,0.000,0.000,1.000"
+          },
+          "glass": false,
+          "image-name": "sprite-eyes.svg",
+          "name": "Eyes"
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "extended-srgb:0.486,0.227,0.929,1.000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:0.878,0.788,1.000,1.000"
+              }
+            }
+          ],
+          "glass": true,
+          "image-name": "sprite-body.svg",
+          "name": "Body"
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "extended-srgb:0.133,0.094,0.235,1.000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:0.753,0.518,0.988,1.000"
+              }
+            }
+          ],
+          "glass": true,
+          "image-name": "sprite-outline.svg",
+          "name": "Outline"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

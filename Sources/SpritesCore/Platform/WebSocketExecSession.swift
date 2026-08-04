@@ -1,9 +1,10 @@
 import Foundation
+import Synchronization
 
 /// A live exec session over the platform's WebSocket protocol. Binary frames
 /// carry stream-ID-prefixed data in non-TTY mode and raw bytes in TTY mode;
 /// text frames carry JSON control messages (session_info, exit).
-final class WebSocketExecSession: NSObject, ExecSession, @unchecked Sendable {
+final class WebSocketExecSession: ExecSession, Sendable {
     let events: AsyncStream<ExecEvent>
 
     private let task: URLSessionWebSocketTask
@@ -11,7 +12,9 @@ final class WebSocketExecSession: NSObject, ExecSession, @unchecked Sendable {
     private let continuation: AsyncStream<ExecEvent>.Continuation
     // Output frames can trail the exit frame, so exit is held back until
     // the server closes the connection (observed live; matches the SDKs).
-    private var pendingExit: Int?
+    // Mutex, not receive-callback confinement: cancel() also reaches this
+    // from the caller's isolation, racing the delegate queue.
+    private let pendingExit = Mutex<Int?>(nil)
 
     convenience init(session: URLSession, request: URLRequest, tty: Bool) {
         self.init(task: session.webSocketTask(with: request), tty: tty)
@@ -21,7 +24,6 @@ final class WebSocketExecSession: NSObject, ExecSession, @unchecked Sendable {
         self.task = task
         self.tty = tty
         (events, continuation) = AsyncStream.makeStream(of: ExecEvent.self)
-        super.init()
         task.resume()
         receiveLoop()
     }
@@ -33,7 +35,7 @@ final class WebSocketExecSession: NSObject, ExecSession, @unchecked Sendable {
             case .success(.data(let data)):
                 if let event = ExecFrame.decode(data, tty: tty) {
                     if case .exit(let code) = event {
-                        pendingExit = code
+                        pendingExit.withLock { $0 = code }
                     } else {
                         continuation.yield(event)
                     }
@@ -43,7 +45,7 @@ final class WebSocketExecSession: NSObject, ExecSession, @unchecked Sendable {
                 if let message = try? JSONDecoder().decode(ControlMessage.self, from: Data(text.utf8)),
                     message.type == "exit"
                 {
-                    pendingExit = message.exit_code ?? 0
+                    pendingExit.withLock { $0 = message.exit_code ?? 0 }
                 }
                 receiveLoop()
             case .success:
@@ -55,8 +57,12 @@ final class WebSocketExecSession: NSObject, ExecSession, @unchecked Sendable {
     }
 
     private func finish() {
-        if let code = pendingExit {
-            pendingExit = nil
+        // Atomic take: when a cancel races the socket-failure callback, only
+        // one of the two concurrent finishes yields the exit event.
+        if let code = pendingExit.withLock({ code in
+            defer { code = nil }
+            return code
+        }) {
             continuation.yield(.exit(code))
         }
         continuation.finish()

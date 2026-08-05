@@ -135,6 +135,56 @@ struct LivePlatformSmokeTests {
         #expect(!url.absoluteString.contains("localhost"))
     }
 
+    @Test func execSessionSurvivesDetachAttachesAndDies() async throws {
+        // The claude-login-reattach substrate against reality: a TTY session
+        // outlives its socket, announces its identity, replays scrollback on
+        // attach, takes stdin afterwards, and dies on kill.
+        let platform = Self.platform
+        let session = try await platform.exec(
+            on: Self.sprite,
+            command: ExecCommand(
+                ["bash"], tty: true, env: ["TERM": "xterm-256color"], rows: 40, cols: 120))
+        let sessionID = try #require(await session.sessionID)
+
+        var reader = ExecEventReader(session)
+        _ = try await reader.next(within: .seconds(15))  // the bash prompt
+        try await session.send(Data("echo live-before-drop\n".utf8))
+        try await Task.sleep(for: .milliseconds(500))
+        await session.cancel()  // drop the socket; the PTY survives
+
+        let listed = try await platform.listExecSessions(on: Self.sprite)
+        let summary = try #require(listed.first { $0.id == sessionID })
+        #expect(summary.command.hasSuffix("bash"))
+
+        let attached = try await platform.attachExec(on: Self.sprite, sessionID: sessionID)
+        #expect(await attached.sessionID == sessionID)
+        reader = ExecEventReader(attached)
+        // Scrollback replay must contain the pre-drop output.
+        var replay = ""
+        while !replay.contains("live-before-drop") {
+            guard let event = try await reader.next(within: .seconds(15)),
+                case .stdout(let data) = event
+            else { break }
+            replay += String(decoding: data, as: UTF8.self)
+        }
+        #expect(replay.contains("live-before-drop"))
+        // Stdin still reaches the process after the reattach.
+        try await attached.send(Data("echo live-after-attach\n".utf8))
+        var echoed = ""
+        while !echoed.contains("live-after-attach\r\n") {
+            guard let event = try await reader.next(within: .seconds(15)),
+                case .stdout(let data) = event
+            else { break }
+            echoed += String(decoding: data, as: UTF8.self)
+        }
+        #expect(echoed.contains("live-after-attach\r\n"))
+        await attached.cancel()
+
+        try await platform.killExecSession(on: Self.sprite, sessionID: sessionID)
+        let after = try await platform.listExecSessions(on: Self.sprite)
+        #expect(!after.contains { $0.id == sessionID })
+    }
+
     @Test func checkpointCreateStreamsProgressAndLands() async throws {
         let platform = Self.platform
         var events: [CheckpointEvent] = []

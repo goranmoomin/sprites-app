@@ -99,6 +99,11 @@ separately and the code fed into the native prompt.
 - Full T3 pairing handshake and WS 101 with the official T3 Code iOS app through the public sprite URL (needs the shipping app plus a pairing code).
 - Claude heartbeat hooks firing when T3 itself drives the `claude` CLI (hooks are user-level and fire for headless `claude -p`, so this is expected to hold; needs a paired client to confirm).
 - Cold-wake (not warm-wake) latency and behavior through the URL and exec.
+- Whether a detached exec session survives warm-to-cold decay (warm survival verified in `.scratch/claude-login-reattach/findings.md`; the login flow's 15m keep-alive sidesteps the question).
+
+Exec-session semantics (detach/attach/list/kill, session_info shape, warm-decay
+survival) were verified 2026-08-05 for the login-reattach work; those findings
+live in `.scratch/claude-login-reattach/findings.md`.
 
 ## Node runtime (apptest-probe7, since destroyed)
 

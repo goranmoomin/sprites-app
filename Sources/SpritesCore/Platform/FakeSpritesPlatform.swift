@@ -46,8 +46,19 @@ public actor FakeSpritesPlatform: SpritesPlatform {
 
     private var execScripts: [ExecScript] = []
 
+    /// Persistent session records (PID-style ids) that outlive their sockets.
+    private var execRecords: [String: FakeExecRecord] = [:]
+    private var execRecordOrder: [String] = []
+    private var nextExecSessionID = 101
+
     /// Commands the app actually ran, for behavioral assertions.
     public private(set) var execLog: [(sprite: String, command: ExecCommand)] = []
+
+    /// Reattaches the app performed, for lazy-reattach assertions.
+    public private(set) var attachLog: [(sprite: String, sessionID: String)] = []
+
+    /// Kills the app requested, for session-hygiene assertions.
+    public private(set) var killLog: [(sprite: String, sessionID: String)] = []
 
     /// Sprite names touched by deep observation (exec/services/tasks/etc.).
     /// ADR 0001 compliance tests assert on this.
@@ -310,13 +321,44 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {
         _ = try deepTouch(sprite)
         execLog.append((sprite, command))
+        let record = FakeExecRecord(id: String(nextExecSessionID), sprite: sprite, argv: command.argv)
+        nextExecSessionID += 1
+        execRecords[record.id] = record
+        execRecordOrder.append(record.id)
+        let io = FakeExecIO(record: record)
         if let script = execScripts.first(where: { $0.matches(command) }) {
-            return FakeExecSession { io in await script.script(command, io) }
-        }
-        return FakeExecSession { io in
+            Task { await script.script(command, io) }
+        } else {
             io.stderr("fake platform: no scripted dialogue for \(command.argv)\n")
             io.exit(127)
         }
+        return record.makeClient()
+    }
+
+    public func attachExec(on sprite: String, sessionID: String) async throws -> any ExecSession {
+        _ = try deepTouch(sprite)
+        attachLog.append((sprite, sessionID))
+        guard let record = execRecords[sessionID], record.sprite == sprite, record.isAlive else {
+            // A dead or unknown session fails the attach handshake.
+            throw PlatformError.notFound
+        }
+        return record.makeClient()
+    }
+
+    public func listExecSessions(on sprite: String) async throws -> [ExecSessionSummary] {
+        _ = try deepTouch(sprite)
+        return execRecordOrder.compactMap { execRecords[$0] }
+            .filter { $0.sprite == sprite && $0.isAlive }
+            .map { ExecSessionSummary(id: $0.id, command: $0.command) }
+    }
+
+    public func killExecSession(on sprite: String, sessionID: String) async throws {
+        _ = try deepTouch(sprite)
+        killLog.append((sprite, sessionID))
+        guard let record = execRecords[sessionID], record.sprite == sprite, record.isAlive else {
+            throw PlatformError.notFound
+        }
+        record.kill()
     }
 
     public func listSprites() async throws -> [SpriteMetadata] {

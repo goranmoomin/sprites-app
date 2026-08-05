@@ -5,6 +5,10 @@ extension ClaudeCodeIntegration {
     /// on, holding the sprite awake.
     public static let heartbeatTaskName = "claude-heartbeat"
 
+    /// The self-expiring task pinning the sprite awake for the login
+    /// dialogue, so it cannot decay toward cold during the Safari/Mail hop.
+    public static let loginKeepAliveTaskName = "claude-code-login"
+
     /// Log in the Claude subscription on the sprite with native UI, then
     /// install the Heartbeat hooks. Never shows a terminal (ADR 0002).
     public func loginFlow(urlTimeout: Duration = .seconds(180)) -> Flow {
@@ -62,22 +66,74 @@ public enum ClaudeOutputParser {
 /// Unlike `setup-token` (which only prints a CI token and saves nothing),
 /// `auth login` persists refreshable credentials to the documented store
 /// (`~/.claude/.credentials.json` on Linux).
+///
+/// iOS may suspend the app and kill the WebSocket during the Safari/Mail
+/// hop; the PTY survives server-side (observed live), so the step lazily
+/// reattaches by identity only when the socket actually died.
 struct ClaudeAuthLoginStep: FlowStep {
     let id = "claude-auth-login"
     let title = "Log in to Claude"
     let urlTimeout: Duration
 
+    static let loginArgv = ["claude", "auth", "login", "--claudeai"]
+    /// The session list reports resolved path + args (observed live), so
+    /// stale-login matching is by this suffix, never argv[0].
+    static var loginCommandSuffix: String { loginArgv.joined(separator: " ") }
+
     func run(in context: FlowContext) async throws {
+        try await context.platform.upsertTask(
+            on: context.sprite, named: ClaudeCodeIntegration.loginKeepAliveTaskName,
+            expiringInSeconds: 15 * 60)
+        do {
+            try await runDialogue(in: context)
+        } catch {
+            try? await context.platform.deleteTask(
+                on: context.sprite, named: ClaudeCodeIntegration.loginKeepAliveTaskName)
+            throw error
+        }
+        try? await context.platform.deleteTask(
+            on: context.sprite, named: ClaudeCodeIntegration.loginKeepAliveTaskName)
+    }
+
+    private func runDialogue(in context: FlowContext) async throws {
+        // Sweep zombies: an abandoned login PTY outlives its socket forever.
+        // Best-effort, and surgical by command suffix.
+        if let sessions = try? await context.platform.listExecSessions(on: context.sprite) {
+            for stale in sessions where stale.command.hasSuffix(Self.loginCommandSuffix) {
+                try? await context.platform.killExecSession(on: context.sprite, sessionID: stale.id)
+            }
+        }
+
         // Observed live: the sprite PTY starts with TERM unset and a 0x0
         // size, and claude silently waits forever without them.
         let session = try await context.platform.exec(
             on: context.sprite,
             command: ExecCommand(
-                ["claude", "auth", "login", "--claudeai"], tty: true,
+                Self.loginArgv, tty: true,
                 env: ["TERM": "xterm-256color"], rows: 40, cols: 120))
+        let sessionID = await session.sessionID
+        do {
+            try await drive(session, sessionID: sessionID, in: context)
+        } catch {
+            // No terminal outcome may leak a live login PTY; killing an
+            // already-exited session 404s harmlessly.
+            await session.cancel()
+            if let sessionID {
+                try? await context.platform.killExecSession(
+                    on: context.sprite, sessionID: sessionID)
+            }
+            throw error
+        }
+    }
+
+    private func drive(
+        _ session: any ExecSession, sessionID: String?, in context: FlowContext
+    ) async throws {
         let reader = ExecEventReader(session)
 
-        // Phase 1: scan PTY output for the sign-in URL.
+        // Phase 1: scan PTY output for the sign-in URL. Live-socket only:
+        // scrollback replay strips the OSC-8 hyperlink carrying the URL
+        // (observed live), so a drop here means starting over.
         var seen = ""
         var url: URL?
         let deadline = ContinuousClock.now + urlTimeout
@@ -97,49 +153,87 @@ struct ClaudeAuthLoginStep: FlowStep {
                 seen += text
                 context.output(text)
             case .exit(let code):
-                await session.cancel()
                 throw FlowError.failed("claude auth login exited early with status \(code)")
             }
             url = ClaudeOutputParser.extractSignInURL(from: seen)
         }
         guard let url else {
-            await session.cancel()
             throw FlowError.failed(
                 "Could not find the sign-in URL in claude's output. The CLI may have changed its prompts.")
         }
 
-        // Phase 2: native step UI; the pasted code goes back over the socket.
+        // Phase 2: native step UI. No socket is needed while the user is
+        // away; whether the held one survives the hop is phase 3's problem.
         let response = await context.prompt(.openURLAndEnterCode(
             url: url,
             instructions: "Sign in with your Claude subscription, then paste the code shown."))
         guard case .text(let code) = response else {
-            await session.cancel()
             throw FlowError.declined
         }
-        // Observed live: Ink treats a rapid input chunk as a paste and
-        // swallows a trailing \r into the pasted text, so Enter must arrive
-        // as its own later keystroke to submit the field.
-        try await session.send(Data(code.utf8))
-        try await Task.sleep(for: .milliseconds(300))
-        try await session.send(Data("\r".utf8))
 
-        // Phase 3: drain until exit and verify the login actually landed.
+        // Phase 3: submit the code on the held socket; reattach by identity
+        // only if it died (ended without an exit: the drop signature).
+        var active = session
+        var activeReader = reader
+        var submitted = false
         var exitCode: Int?
-        while exitCode == nil {
-            guard let event = try await reader.next(within: .seconds(120)) else { break }
-            switch event {
-            case .stdout(let data), .stderr(let data):
-                context.output(String(decoding: data, as: UTF8.self))
-            case .exit(let code):
-                exitCode = code
+
+        submission: for attempt in 0..<2 {
+            if attempt == 1 {
+                guard let sessionID else {
+                    throw FlowError.failed(
+                        "The connection dropped during sign-in and the session announced no "
+                            + "identity to reattach by. Retry to start over.")
+                }
+                do {
+                    active = try await context.platform.attachExec(
+                        on: context.sprite, sessionID: sessionID)
+                } catch {
+                    // The process ended while the user was away. If a code
+                    // already went in, verification below is the arbiter.
+                    if submitted { break submission }
+                    throw FlowError.failed(
+                        "The sign-in session ended while you were away. Retry to start over.")
+                }
+                activeReader = ExecEventReader(active)
             }
+            do {
+                // Observed live: Ink treats a rapid input chunk as a paste
+                // and swallows a trailing \r into the pasted text, so Enter
+                // must arrive as its own later keystroke to submit.
+                try await active.send(Data(code.utf8))
+                try await Task.sleep(for: .milliseconds(300))
+                try await active.send(Data("\r".utf8))
+                submitted = true
+            } catch {
+                continue submission  // dead socket; the next attempt reattaches
+            }
+            while exitCode == nil {
+                guard let event = try await activeReader.next(within: .seconds(120)) else {
+                    continue submission  // stream ended without exit: the drop signature
+                }
+                switch event {
+                case .stdout(let data), .stderr(let data):
+                    context.output(String(decoding: data, as: UTF8.self))
+                case .exit(let code):
+                    exitCode = code
+                }
+            }
+            break submission
         }
-        guard exitCode == 0 else {
-            throw FlowError.failed("claude auth login exited with status \(exitCode ?? -1)")
+
+        if exitCode == nil, !submitted {
+            throw FlowError.failed(
+                "The connection dropped during sign-in before the code could be submitted. "
+                    + "Retry to start over.")
+        }
+        if let exitCode, exitCode != 0 {
+            throw FlowError.failed("claude auth login exited with status \(exitCode)")
         }
 
         // Verify the login actually landed: claude's own status probe, plus
-        // the documented credential store the detail screen observes.
+        // the documented credential store the detail screen observes. With
+        // no observed exit, this is the arbiter.
         let status = try await context.platform.runCapturing(
             on: context.sprite, ["claude", "auth", "status", "--json"])
         context.output(status.stdoutText)
@@ -147,6 +241,11 @@ struct ClaudeAuthLoginStep: FlowStep {
             .flatMap { $0 as? [String: Any] }
             .flatMap { $0["loggedIn"] as? Bool } ?? false
         guard loggedIn else {
+            if exitCode == nil {
+                throw FlowError.failed(
+                    "The sign-in session ended while you were away and no login was recorded. "
+                        + "Retry to start over.")
+            }
             throw FlowError.failed("claude auth status does not report a login after the dialogue.")
         }
         guard try await context.platform.fileExists(

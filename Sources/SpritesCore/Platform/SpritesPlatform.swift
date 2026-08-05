@@ -46,6 +46,11 @@ public protocol SpritesPlatform: Sendable {
 
     // MARK: Exec (deep; wakes a cold Sprite)
     func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession
+    /// Reattaches to a session that outlived its socket; scrollback replays
+    /// as ordinary output. Throws if the session has ended.
+    func attachExec(on sprite: String, sessionID: String) async throws -> any ExecSession
+    func listExecSessions(on sprite: String) async throws -> [ExecSessionSummary]
+    func killExecSession(on sprite: String, sessionID: String) async throws
 
     // MARK: In-sprite files (deep; wakes a cold Sprite)
     func fileExists(on sprite: String, path: String) async throws -> Bool

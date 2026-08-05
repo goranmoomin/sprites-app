@@ -34,9 +34,24 @@ public enum ExecEvent: Sendable, Equatable {
 /// A live exec session: an event stream plus stdin/keystrokes going back.
 public protocol ExecSession: AnyObject, Sendable {
     var events: AsyncStream<ExecEvent> { get }
+    /// The platform's identity for this session (a recyclable PID string,
+    /// observed live), for attach-after-drop. Nil if the stream ends first.
+    var sessionID: String? { get async }
     func send(_ data: Data) async throws
     func sendEOF() async throws
     func cancel() async
+}
+
+/// One entry of the platform's active-session list. `command` is the
+/// resolved executable path plus args (observed live), so match by suffix.
+public struct ExecSessionSummary: Sendable, Equatable {
+    public var id: String
+    public var command: String
+
+    public init(id: String, command: String) {
+        self.id = id
+        self.command = command
+    }
 }
 
 /// Captured output of a one-shot command.

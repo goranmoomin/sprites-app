@@ -375,4 +375,45 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         return WebSocketExecSession(session: session, request: request, tty: command.tty)
     }
+
+    public func attachExec(on sprite: String, sessionID: String) async throws -> any ExecSession {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/v1/sprites/\(sprite)/exec/\(sessionID)"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.scheme = components.scheme == "http" ? "ws" : "wss"
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // tty: only TTY sessions survive disconnect (observed live), so an
+        // attach target is TTY by construction.
+        let session = WebSocketExecSession(session: session, request: request, tty: true)
+        // A dead session fails the handshake (observed: 404 under the WS
+        // upgrade); throw so callers can tell "gone" from "ended".
+        guard await session.sessionID != nil else {
+            await session.cancel()
+            throw PlatformError.notFound
+        }
+        return session
+    }
+
+    private struct WireExecSession: Decodable {
+        var id: String
+        var command: String
+    }
+
+    private struct WireExecSessionList: Decodable {
+        var sessions: [WireExecSession]
+    }
+
+    public func listExecSessions(on sprite: String) async throws -> [ExecSessionSummary] {
+        let data = try await send(request("GET", "/v1/sprites/\(sprite)/exec"))
+        return try Self.decoder.decode(WireExecSessionList.self, from: data).sessions.map {
+            ExecSessionSummary(id: $0.id, command: $0.command)
+        }
+    }
+
+    public func killExecSession(on sprite: String, sessionID: String) async throws {
+        // The NDJSON kill-progress body is drained and dropped.
+        _ = try await send(request("POST", "/v1/sprites/\(sprite)/exec/\(sessionID)/kill"))
+    }
 }

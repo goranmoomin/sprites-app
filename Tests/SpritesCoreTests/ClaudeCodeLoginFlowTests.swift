@@ -137,6 +137,154 @@ struct ClaudeCodeLoginFlowTests {
         #expect(run.transcript.contains("Please visit the following address"))
     }
 
+    /// The observed iOS failure: suspension kills the WebSocket during the
+    /// Safari/Mail hop. The PTY survives server-side; the step reattaches
+    /// by identity, tolerates the scrollback replay, and completes.
+    @Test func socketDropDuringTheHopReattachesAndCompletes() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        await fake.scriptExec(where: { $0.argv == ["claude", "auth", "login", "--claudeai"] && $0.tty }) { _, io in
+            io.stdout(
+                "If your browser didn't open, visit: \(Self.oauthURL)\r\n"
+                    + "Paste code here if prompted > ")
+            io.dropConnection()  // the app got suspended; the socket died
+            guard let code = await io.readLine(), code == "auth-code-42" else {
+                io.exit(1)
+                return
+            }
+            await fake.setFile(
+                on: "morning-cherry-1234",
+                path: "/home/sprite/.claude/.credentials.json",
+                content: #"{"claudeAiOauth":{"accessToken":"sk-ant-oat01-fake"}}"#)
+            io.stdout("Login successful.\r\n")
+            io.exit(0)
+        }
+        await Self.scriptAuthStatus(fake, sprite: "morning-cherry-1234")
+
+        let run = FlowRun(
+            flow: Integrations.claudeCode.loginFlow(),
+            platform: fake, sprite: "morning-cherry-1234")
+        let responder = Task {
+            guard await run.nextPrompt() != nil else {
+                Issue.record("expected the sign-in prompt")
+                return
+            }
+            // The keep-alive task pins the sprite while the user is away.
+            let tasksDuring = (try? await fake.listTasks(on: "morning-cherry-1234")) ?? []
+            #expect(tasksDuring.contains { $0.name == ClaudeCodeIntegration.loginKeepAliveTaskName })
+            run.respond(.text("auth-code-42"))
+        }
+        await run.start()
+        await responder.value
+
+        #expect(run.phase == .succeeded)
+        #expect(await fake.attachLog.count == 1)
+        // The keep-alive is released and the login session ended naturally.
+        let tasksAfter = (try? await fake.listTasks(on: "morning-cherry-1234")) ?? []
+        #expect(!tasksAfter.contains { $0.name == ClaudeCodeIntegration.loginKeepAliveTaskName })
+        #expect(try await fake.listExecSessions(on: "morning-cherry-1234").isEmpty)
+    }
+
+    /// The tail case: the login process itself died while the user was
+    /// away. Reattach fails, and the step reports it honestly instead of a
+    /// cryptic exit status.
+    @Test func processDeathDuringTheHopFailsCleanly() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        await fake.scriptExec(where: { $0.argv.contains("login") }) { _, io in
+            io.stdout(
+                "If your browser didn't open, visit: \(Self.oauthURL)\r\n"
+                    + "Paste code here if prompted > ")
+            io.dropConnection()
+            io.exit(1)  // died while the user was off in Mail
+        }
+
+        let run = FlowRun(
+            flow: Integrations.claudeCode.loginFlow(),
+            platform: fake, sprite: "morning-cherry-1234")
+        let responder = Task {
+            if await run.nextPrompt() != nil {
+                run.respond(.text("auth-code-42"))
+            }
+        }
+        await run.start()
+        await responder.value
+
+        #expect(run.phase == .failed)
+        #expect(run.failureMessage?.contains("while you were away") == true)
+        let tasksAfter = (try? await fake.listTasks(on: "morning-cherry-1234")) ?? []
+        #expect(!tasksAfter.contains { $0.name == ClaudeCodeIntegration.loginKeepAliveTaskName })
+    }
+
+    /// Declining must not leave a live login PTY parked at an OAuth prompt.
+    @Test func decliningKillsTheLoginSession() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        await fake.scriptExec(where: { $0.argv.contains("login") }) { _, io in
+            io.stdout(
+                "If your browser didn't open, visit: \(Self.oauthURL)\r\n"
+                    + "Paste code here if prompted > ")
+            _ = await io.readLine()
+            io.exit(1)
+        }
+
+        let run = FlowRun(
+            flow: Integrations.claudeCode.loginFlow(),
+            platform: fake, sprite: "morning-cherry-1234")
+        let responder = Task {
+            if await run.nextPrompt() != nil {
+                run.respond(.declined)
+            }
+        }
+        await run.start()
+        await responder.value
+
+        #expect(run.phase == .cancelled)
+        #expect(await fake.killLog.count == 1)
+        #expect(try await fake.listExecSessions(on: "morning-cherry-1234").isEmpty)
+    }
+
+    /// Starting the flow sweeps zombies from abandoned attempts, so retry is
+    /// idempotent from any wreckage state. Surgical: command-suffix match.
+    @Test func flowStartSweepsStaleLoginSessions() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        await Self.scriptHappyClaudeLogin(fake)
+        // An innocent bystander session the sweep must not touch.
+        await fake.scriptExec(where: { $0.argv.first == "sleep" }) { _, io in
+            _ = await io.readLine()
+            io.exit(0)
+        }
+
+        let zombie = try await fake.exec(
+            on: "morning-cherry-1234",
+            command: ExecCommand(
+                ["claude", "auth", "login", "--claudeai"], tty: true,
+                env: ["TERM": "xterm-256color"], rows: 40, cols: 120))
+        let zombieID = await zombie.sessionID
+        await zombie.cancel()  // abandoned: detached but alive
+        let bystander = try await fake.exec(
+            on: "morning-cherry-1234", command: ExecCommand(["sleep", "600"], tty: true))
+        await bystander.cancel()
+
+        let run = FlowRun(
+            flow: Integrations.claudeCode.loginFlow(),
+            platform: fake, sprite: "morning-cherry-1234")
+        let responder = Task {
+            if await run.nextPrompt() != nil {
+                run.respond(.text("auth-code-42"))
+            }
+        }
+        await run.start()
+        await responder.value
+
+        #expect(run.phase == .succeeded)
+        #expect(await fake.killLog.map(\.sessionID) == [zombieID])
+        // Only the bystander survives: zombie swept, login exited naturally.
+        #expect(try await fake.listExecSessions(on: "morning-cherry-1234").map(\.command)
+            == ["/usr/bin/sleep 600"])
+    }
+
     @Test func aDerailedStepCanBeRetried() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)

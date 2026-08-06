@@ -58,9 +58,84 @@ struct CreateDeleteSpriteTests {
         let listModel = SpriteListModel(platform: fake)
         await listModel.refresh()
 
-        await listModel.delete("doomed-sprite-1")
+        let failure = await listModel.delete("doomed-sprite-1").value
 
+        #expect(failure == nil)
         #expect(listModel.sprites.isEmpty)
+        #expect(try await fake.listSprites().isEmpty)
+    }
+
+    @Test func deleteTracksInFlightSpritesUntilDone() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "doomed-sprite-1")
+        await fake.holdDeletes()
+        let listModel = SpriteListModel(platform: fake)
+        await listModel.refresh()
+
+        let deleting = listModel.delete("doomed-sprite-1")
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(listModel.deletingSprites == ["doomed-sprite-1"])
+
+        await fake.releaseDeletes()
+        let failure = await deleting.value
+        #expect(failure == nil)
+        #expect(listModel.deletingSprites.isEmpty)
+        #expect(listModel.sprites.isEmpty)
+    }
+
+    @Test func overlappingDeletesAreTrackedIndependently() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "doomed-sprite-1")
+        await fake.addSprite(name: "doomed-sprite-2")
+        await fake.holdDeletes()
+        let listModel = SpriteListModel(platform: fake)
+        await listModel.refresh()
+
+        let first = listModel.delete("doomed-sprite-1")
+        let second = listModel.delete("doomed-sprite-2")
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(listModel.deletingSprites == ["doomed-sprite-1", "doomed-sprite-2"])
+
+        await fake.releaseDeletes()
+        _ = await first.value
+        _ = await second.value
+        #expect(listModel.deletingSprites.isEmpty)
+        #expect(listModel.sprites.isEmpty)
+    }
+
+    @Test func failedDeleteSurfacesErrorAndClearsInFlight() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "survivor-sprite-1")
+        let listModel = SpriteListModel(platform: fake)
+        await listModel.refresh()
+
+        let failure = await listModel.delete("no-such-sprite").value
+
+        #expect(failure != nil)
+        #expect(listModel.lastError != nil)
+        #expect(listModel.deletingSprites.isEmpty)
+        #expect(listModel.sprites.map(\.name) == ["survivor-sprite-1"])
+    }
+
+    @Test func deleteSucceededButRefreshFailedStillClearsInFlight() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "doomed-sprite-1")
+        await fake.holdDeletes()
+        let listModel = SpriteListModel(platform: fake)
+        await listModel.refresh()
+
+        let deleting = listModel.delete("doomed-sprite-1")
+        try await Task.sleep(for: .milliseconds(50))
+        // The platform delete lands, then the follow-up list observation fails.
+        await fake.setAuthorized(false)
+        await fake.releaseDeletes()
+
+        let failure = await deleting.value
+        #expect(failure == nil)
+        #expect(listModel.deletingSprites.isEmpty)
+        #expect(listModel.lastError != nil)
+
+        await fake.setAuthorized(true)
         #expect(try await fake.listSprites().isEmpty)
     }
 }

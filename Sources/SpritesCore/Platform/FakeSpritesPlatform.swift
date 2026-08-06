@@ -34,6 +34,9 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     private var wakesHeld = false
     private var heldWakes: [CheckedContinuation<Void, Never>] = []
 
+    private var deletesHeld = false
+    private var heldDeletes: [CheckedContinuation<Void, Never>] = []
+
     /// Sprites knowingly woken: an explicit wake() or a wake-holding task
     /// upsert (Keep-alive). Deep calls on a cold sprite outside this set
     /// are ADR 0001 violations.
@@ -138,6 +141,18 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         wakesHeld = false
         for continuation in heldWakes { continuation.resume() }
         heldWakes = []
+    }
+
+    /// Makes deleteSprite() block after the platform-side removal until
+    /// releaseDeletes(), to observe in-flight delete states.
+    public func holdDeletes() {
+        deletesHeld = true
+    }
+
+    public func releaseDeletes() {
+        deletesHeld = false
+        for continuation in heldDeletes { continuation.resume() }
+        heldDeletes = []
     }
 
     /// Registers a canned CLI dialogue. The first matching script answers an
@@ -381,5 +396,8 @@ public actor FakeSpritesPlatform: SpritesPlatform {
             throw PlatformError.notFound
         }
         order.removeAll { $0 == name }
+        if deletesHeld {
+            await withCheckedContinuation { heldDeletes.append($0) }
+        }
     }
 }

@@ -39,13 +39,33 @@ public struct SpriteListView: View {
                     }
                 } else {
                     List(model.sprites) { sprite in
+                        let isDeleting = model.deletingSprites.contains(sprite.name)
                         NavigationLink(value: sprite.name) {
-                            SpriteRow(sprite: sprite)
+                            SpriteRow(sprite: sprite, isDeleting: isDeleting)
                         }
+                            .disabled(isDeleting)
                             .swipeActions {
-                                Button("Delete", role: .destructive) {
-                                    spriteToDelete = sprite
+                                if !isDeleting {
+                                    Button("Delete", role: .destructive) {
+                                        spriteToDelete = sprite
+                                    }
                                 }
+                            }
+                            // Anchored to the row: iOS 26 presents this as a
+                            // popover pointing at the source view.
+                            .confirmationDialog(
+                                "Delete \(sprite.name)?",
+                                isPresented: Binding(
+                                    get: { spriteToDelete?.name == sprite.name },
+                                    set: { if !$0 { spriteToDelete = nil } }
+                                ),
+                                titleVisibility: .visible
+                            ) {
+                                Button("Delete Sprite", role: .destructive) {
+                                    model.delete(sprite.name)
+                                }
+                            } message: {
+                                Text("This permanently destroys its filesystem, services, and checkpoints.")
                             }
                     }
                     .refreshable { await model.refresh() }
@@ -53,8 +73,8 @@ public struct SpriteListView: View {
             }
             .navigationTitle("Sprites")
             .navigationDestination(for: String.self) { name in
-                SpriteDetailView(platform: platform, sprite: name, session: session) {
-                    Task { await model.refresh() }
+                SpriteDetailView(platform: platform, sprite: name, session: session) { doomed in
+                    await model.delete(doomed).value
                 }
             }
             .toolbar {
@@ -76,38 +96,31 @@ public struct SpriteListView: View {
                     path.append(name)
                 }
             }
-            .confirmationDialog(
-                "Delete \(spriteToDelete?.name ?? "sprite")?",
-                isPresented: Binding(
-                    get: { spriteToDelete != nil },
-                    set: { if !$0 { spriteToDelete = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: spriteToDelete
-            ) { sprite in
-                Button("Delete Sprite", role: .destructive) {
-                    Task { await model.delete(sprite.name) }
-                }
-            } message: { _ in
-                Text("This permanently destroys its filesystem, services, and checkpoints.")
-            }
         }
     }
 }
 
 struct SpriteRow: View {
     let sprite: SpriteMetadata
+    var isDeleting = false
 
     var body: some View {
         HStack {
             Text(sprite.name)
             Spacer()
-            Text(sprite.status.display)
-                .foregroundStyle(.secondary)
-            Image(systemName: "circle.fill")
-                .font(.caption2)
-                .foregroundStyle(statusColor)
+            if isDeleting {
+                Text("Deleting...")
+                    .foregroundStyle(.secondary)
+                ProgressView()
+            } else {
+                Text(sprite.status.display)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(statusColor)
+            }
         }
+        .opacity(isDeleting ? 0.5 : 1)
     }
 
     private var statusColor: Color {

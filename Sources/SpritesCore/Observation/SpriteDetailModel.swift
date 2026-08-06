@@ -61,18 +61,6 @@ public final class SpriteDetailModel {
         metadata?.status != .running && !hasWokenForInspection
     }
 
-    /// Deletes the sprite on the platform. Returns true when confirmed.
-    public func deleteSprite() async -> Bool {
-        do {
-            try await platform.deleteSprite(named: sprite)
-            return true
-        } catch {
-            lastError = error
-            session?.handle(error)
-            return false
-        }
-    }
-
     public func refresh() async {
         do {
             metadata = try await platform.getSprite(named: sprite)

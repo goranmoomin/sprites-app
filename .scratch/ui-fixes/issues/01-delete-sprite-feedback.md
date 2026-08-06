@@ -21,16 +21,26 @@ treatment.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Simulator repro first: confirm the misanchored popover on the current
       build, then confirm the fix anchors to the trigger (detail button, list
       row, service detail actions)
-- [ ] Detail: spinner in the Delete button during the call; dismiss only
+- [x] Detail: spinner in the Delete button during the call; dismiss only
       after success; failure keeps the screen with the existing error surface
-- [ ] List: rows for every member of `deletingSprites` are dimmed, show a
+- [x] List: rows for every member of `deletingSprites` are dimmed, show a
       spinner, and have swipe actions disabled; no optimistic removal
-- [ ] Two overlapping deletes are each represented independently
-- [ ] Swiping back mid-delete neither cancels the delete nor strands a set
+- [x] Two overlapping deletes are each represented independently
+- [x] Swiping back mid-delete neither cancels the delete nor strands a set
       entry; behavioral test covers insert/remove on success, failure, and
       delete-succeeded-but-refresh-failed (row stale, not stuck spinning)
+
+## Comments
+
+Implemented: `deletingSprites: Set<String>` on the list model with a
+model-owned task and defer-clear ordered after the post-delete refresh;
+detail deletes call through a `deleteSprite: (String) async -> Error?` seam;
+all three destructive confirms (list row, detail button, service detail)
+anchored to their triggers. The misanchored-before state is evidenced by the
+user's device screenshot; the anchored-after state compiles and is pending a
+visual pass on device, so the repro box stays open.

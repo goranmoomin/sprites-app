@@ -71,6 +71,19 @@ struct ServiceDetailView: View {
                     Button("Delete Service", role: .destructive) {
                         confirmingDelete = true
                     }
+                    // Anchored to the button: iOS 26 presents this as a
+                    // popover pointing at the source view.
+                    .confirmationDialog(
+                        "Delete \(serviceName)?", isPresented: $confirmingDelete,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete Service", role: .destructive) {
+                            Task {
+                                await model.deleteService(serviceName)
+                                dismiss()
+                            }
+                        }
+                    }
                 }
             } else {
                 Text("Service no longer exists.")
@@ -79,14 +92,6 @@ struct ServiceDetailView: View {
         }
         .navigationTitle(serviceName)
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Delete \(serviceName)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Delete Service", role: .destructive) {
-                Task {
-                    await model.deleteService(serviceName)
-                    dismiss()
-                }
-            }
-        }
     }
 }
 

@@ -8,18 +8,22 @@ public struct SpriteDetailView: View {
     @State private var activeFlow: Flow?
     @State private var showingCreateCheckpoint = false
     @State private var checkpointToRestore: Checkpoint?
-    private let onDeleted: () -> Void
+    /// Delete ownership lives with the sprite list model; this seam calls
+    /// through to it and reports the failure, if any.
+    private let deleteSprite: (String) async -> Error?
     @State private var confirmingDelete = false
+    @State private var isDeletingSprite = false
+    @State private var deleteError: Error?
     @Environment(\.dismiss) private var dismiss
 
     private let platform: SpritesPlatform
 
     public init(
         platform: SpritesPlatform, sprite: String, session: Session?,
-        onDeleted: @escaping () -> Void = {}
+        deleteSprite: @escaping (String) async -> Error?
     ) {
         self.platform = platform
-        self.onDeleted = onDeleted
+        self.deleteSprite = deleteSprite
         _model = State(initialValue: SpriteDetailModel(
             platform: platform, sprite: sprite, session: session))
     }
@@ -43,8 +47,31 @@ public struct SpriteDetailView: View {
             }
 
             Section {
-                Button("Delete Sprite", role: .destructive) {
-                    confirmingDelete = true
+                if isDeletingSprite {
+                    HStack {
+                        ProgressView()
+                        Text("Deleting...")
+                    }
+                } else {
+                    Button("Delete Sprite", role: .destructive) {
+                        confirmingDelete = true
+                    }
+                    // Anchored to the button: iOS 26 presents this as a
+                    // popover pointing at the source view.
+                    .confirmationDialog(
+                        "Delete \(model.sprite)?", isPresented: $confirmingDelete,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete Sprite", role: .destructive) {
+                            Task { await runDelete() }
+                        }
+                    } message: {
+                        Text("This permanently destroys its filesystem, services, and checkpoints.")
+                    }
+                }
+                if let deleteError {
+                    Text(String(describing: deleteError))
+                        .foregroundStyle(.red)
                 }
             }
         }
@@ -80,19 +107,14 @@ public struct SpriteDetailView: View {
         } message: { _ in
             Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
         }
-        .confirmationDialog(
-            "Delete \(model.sprite)?", isPresented: $confirmingDelete, titleVisibility: .visible
-        ) {
-            Button("Delete Sprite", role: .destructive) {
-                Task {
-                    if await model.deleteSprite() {
-                        onDeleted()
-                        dismiss()
-                    }
-                }
-            }
-        } message: {
-            Text("This permanently destroys its filesystem, services, and checkpoints.")
+    }
+
+    private func runDelete() async {
+        isDeletingSprite = true
+        defer { isDeletingSprite = false }
+        deleteError = await deleteSprite(model.sprite)
+        if deleteError == nil {
+            dismiss()
         }
     }
 

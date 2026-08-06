@@ -197,6 +197,7 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         sprites[name]?.urlVisibility = visibility
     }
 
+    /// Test helper mirroring the discipline: an explicit wake is knowing.
     public func wake(sprite name: String) async throws {
         try checkAuthorized()
         guard sprites[name] != nil else { throw PlatformError.notFound }
@@ -224,6 +225,9 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         // Holding a sprite awake is itself a knowing wake (Keep-alive on a
         // cold sprite), so it passes the cold-deep tripwire.
         explicitlyWoken.insert(sprite)
+        if wakesHeld, sprites[sprite]?.status != .running {
+            await withCheckedContinuation { heldWakes.append($0) }
+        }
         _ = try deepTouch(sprite)
         setTask(on: sprite, PlatformTask(
             name: name, startedAt: now, expiresAt: now.addingTimeInterval(TimeInterval(seconds))))
@@ -376,7 +380,11 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         record.kill()
     }
 
+    /// Shallow observations performed, for refresh-coalescing assertions.
+    public private(set) var listSpritesCalls = 0
+
     public func listSprites() async throws -> [SpriteMetadata] {
+        listSpritesCalls += 1
         try checkAuthorized()
         return order.compactMap { sprites[$0] }
     }

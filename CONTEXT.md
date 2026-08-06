@@ -37,7 +37,7 @@ _Avoid_: Wizard, onboarding, operation
 A one-tap operation on the sprite detail screen (Open in T3 Code, Run command, SSH).
 
 **Keep-alive**:
-A named platform task our app holds on the user's behalf to stop a Sprite from pausing. Not an abstraction: one Keep-alive is one task, max 1h, extended or released explicitly from the detail screen.
+The single named platform task our app holds on the user's behalf to keep a Sprite running. Not an abstraction: one Keep-alive is one task, its TTL set by the gesture — Wake to inspect holds 5 minutes, Keep active holds 1h (the platform max) — extended or released explicitly from the detail screen.
 _Avoid_: Lease, lock
 
 **Heartbeat**:

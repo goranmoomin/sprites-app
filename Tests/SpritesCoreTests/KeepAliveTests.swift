@@ -72,6 +72,37 @@ struct KeepAliveTests {
         #expect(model.keepAliveTask != nil)
     }
 
+    @Test func wakeToInspectHoldsTheSpriteWithAFiveMinuteKeepAlive() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "quiet-frog-5678", status: .cold)
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
+        await model.refresh()
+
+        await model.wakeToInspect()
+
+        let task = try #require(model.keepAliveTask)
+        let now = await fake.now
+        #expect(task.expiresAt == now.addingTimeInterval(300))
+        #expect(model.metadata?.status == .running)
+        #expect(!model.needsWakeToInspect)
+    }
+
+    @Test func keepActiveExtendsTheWakeHoldToAnHour() async throws {
+        // Wake to inspect and Keep active are the same task with different
+        // TTLs: extending upgrades the one hold, it does not add a second.
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "quiet-frog-5678", status: .cold)
+        let model = SpriteDetailModel(platform: fake, sprite: "quiet-frog-5678")
+        await model.refresh()
+        await model.wakeToInspect()
+
+        await model.keepActive()
+
+        let now = await fake.now
+        #expect(model.keepAliveTask?.expiresAt == now.addingTimeInterval(3600))
+        #expect(model.tasks?.count == 1)
+    }
+
     @Test func noOtherFeatureCreatesAKeepAlive() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)

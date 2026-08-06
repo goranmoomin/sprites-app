@@ -15,6 +15,7 @@ public struct SpriteDetailView: View {
     @State private var isDeletingSprite = false
     @State private var deleteError: Error?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     private let platform: SpritesPlatform
 
@@ -79,6 +80,11 @@ public struct SpriteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.refresh() }
         .refreshable { await model.refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await model.refreshOnFocus() }
+            }
+        }
         .sheet(isPresented: $showingCreateService) {
             CreateServiceView(platform: platform, sprite: model.sprite) {
                 Task { await model.refresh() }

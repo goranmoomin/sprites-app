@@ -33,18 +33,28 @@ they recognize Services.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Wake to inspect creates the hold task with 5m expiry, visible in the
+- [x] Wake to inspect creates the hold task with 5m expiry, visible in the
       Tasks section, and the Sprite stays running for the window
-- [ ] Keep active / Extend set the same task to 1h; Release deletes it; the
+- [x] Keep active / Extend set the same task to 1h; Release deletes it; the
       UI presents a single hold, never two concepts
-- [ ] `hasWokenForInspection` is gone; deep observation happens iff metadata
+- [x] `hasWokenForInspection` is gone; deep observation happens iff metadata
       reports running; after hold expiry, refresh degrades to "Wake to
       inspect" without waking
-- [ ] Foregrounding the app or navigating back never wakes a cold or warm
+- [x] Foregrounding the app or navigating back never wakes a cold or warm
       Sprite — pinned by a cold-deep-call tripwire test
-- [ ] Concurrent triggers (task, refreshable, scene-active, navigate-back)
+- [x] Concurrent triggers (task, refreshable, scene-active, navigate-back)
       coalesce; no spinner on focus refreshes
-- [ ] Keep-alive behavioral tests updated: wake now creates the hold task by
+- [x] Keep-alive behavioral tests updated: wake now creates the hold task by
       design; error/empty list branches are refreshable
+
+## Comments
+
+Implemented. `wakeToInspect()` is now `keepActive(forSeconds: 300)` — the
+Keep-alive is the one hold. `wake` left the platform protocol entirely (the
+fake keeps a test-only helper); waking upserts respect `holdWakes` so the
+waking-state test still gates. Focus triggers are per-screen `scenePhase`
+plus a path-count `.onChange` for navigate-back; both models coalesce via a
+shared in-flight task with a 5s focus debounce (interval injectable for
+tests). CONTEXT.md Keep-alive entry rewritten.

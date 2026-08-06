@@ -16,10 +16,6 @@ public protocol SpritesPlatform: Sendable {
     /// Changes URL visibility. Only ever called after explicit user consent.
     func setURLVisibility(sprite: String, _ visibility: URLVisibility) async throws
 
-    // MARK: Waking (activity; only on user request or an already-running Sprite)
-    /// Explicitly wakes a Sprite. Counts as deep activity.
-    func wake(sprite: String) async throws
-
     // MARK: Deep observation (wakes a cold Sprite)
     func services(on sprite: String) async throws -> [Service]
     func listTasks(on sprite: String) async throws -> [PlatformTask]

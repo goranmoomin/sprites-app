@@ -176,11 +176,6 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
             json: ["url_settings": ["auth": visibility == .public ? "public" : "sprite"]]))
     }
 
-    public func wake(sprite: String) async throws {
-        // Any exec counts as activity and flips the sprite to running.
-        _ = try await runCapturing(on: sprite, ["true"])
-    }
-
     public func services(on sprite: String) async throws -> [Service] {
         let data = try await send(request("GET", "/v1/sprites/\(sprite)/services"))
         // The endpoint may answer a bare array or an object wrapper.

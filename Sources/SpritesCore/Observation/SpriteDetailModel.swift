@@ -16,12 +16,6 @@ public final class SpriteDetailModel {
     public private(set) var isWaking = false
     public private(set) var lastError: Error?
 
-    /// Whether the user explicitly woke this sprite to inspect it. Observed
-    /// live: exec flips a sprite to running only transiently and it settles
-    /// back to warm, so consent (not the status field) gates deep
-    /// observation once given (ADR 0001: "or explicit wake").
-    private var hasWokenForInspection = false
-
     /// Per-integration status lines, e.g. "Claude Code: logged in".
     public private(set) var integrationLines: [IntegrationStatusLine]?
     /// One-tap Actions contributed by integrations.
@@ -39,15 +33,20 @@ public final class SpriteDetailModel {
     private let platform: SpritesPlatform
     private let session: Session?
     private let integrations: [any Integration]
+    private let focusRefreshMinimumInterval: TimeInterval
+    private var refreshInFlight: Task<Void, Never>?
+    private var lastRefreshEnded: Date?
 
     public init(
         platform: SpritesPlatform, sprite: String, session: Session? = nil,
-        integrations: [any Integration] = Integrations.all
+        integrations: [any Integration] = Integrations.all,
+        focusRefreshMinimumInterval: TimeInterval = 5
     ) {
         self.platform = platform
         self.sprite = sprite
         self.session = session
         self.integrations = integrations
+        self.focusRefreshMinimumInterval = focusRefreshMinimumInterval
     }
 
     /// A Custom service: recognized by no integration; generic controls only.
@@ -58,10 +57,36 @@ public final class SpriteDetailModel {
     /// A sprite that is not running needs an explicit wake before deep
     /// observation; its detail screen shows "Wake to inspect" instead.
     public var needsWakeToInspect: Bool {
-        metadata?.status != .running && !hasWokenForInspection
+        metadata?.status != .running
     }
 
+    /// Coalesces with any in-flight refresh: concurrent triggers (task,
+    /// pull-to-refresh, scene activation) become one observation.
     public func refresh() async {
+        if let refreshInFlight {
+            await refreshInFlight.value
+            return
+        }
+        let task = Task { await performRefresh() }
+        refreshInFlight = task
+        await task.value
+        refreshInFlight = nil
+        lastRefreshEnded = Date()
+    }
+
+    /// Silent refresh for scene activation: skipped when a refresh just
+    /// finished (sheet-dismissal handlers already refresh). Shallow first,
+    /// deep only while the sprite is running — focus never wakes (ADR 0001).
+    public func refreshOnFocus() async {
+        if refreshInFlight == nil, let lastRefreshEnded,
+            Date().timeIntervalSince(lastRefreshEnded) < focusRefreshMinimumInterval
+        {
+            return
+        }
+        await refresh()
+    }
+
+    private func performRefresh() async {
         do {
             metadata = try await platform.getSprite(named: sprite)
             lastError = nil
@@ -70,24 +95,15 @@ public final class SpriteDetailModel {
             session?.handle(error)
             return
         }
-        if metadata?.status == .running || hasWokenForInspection {
+        if metadata?.status == .running {
             await deepObserve()
         }
     }
 
-    /// Explicit user choice to wake a cold sprite and inspect it.
+    /// Explicit user choice to wake a sprite and inspect it: holds it
+    /// running for a 5-minute window via the app's Keep-alive task.
     public func wakeToInspect() async {
-        isWaking = true
-        defer { isWaking = false }
-        do {
-            try await platform.wake(sprite: sprite)
-        } catch {
-            lastError = error
-            session?.handle(error)
-            return
-        }
-        hasWokenForInspection = true
-        await refresh()
+        await keepActive(forSeconds: 300)
     }
 
     // MARK: Keep-alive (a named platform task the app holds; max 1h)

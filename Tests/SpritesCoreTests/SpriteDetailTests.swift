@@ -62,10 +62,11 @@ struct SpriteDetailTests {
         #expect(!model.needsWakeToInspect)
     }
 
-    @Test func wakeConsentOutlivesTheTransientRunningStatus() async throws {
-        // Observed live: exec flips a sprite to running only briefly and it
-        // settles back to warm. Once the user explicitly woke the sprite,
-        // deep observation continues on refresh; no second wake is demanded.
+    @Test func afterTheWakeHoldLapsesTheScreenAsksToWakeAgain() async throws {
+        // Wake to inspect holds the sprite running via a 5-minute task; once
+        // that hold expires and the sprite settles, deep observation stops
+        // and the screen honestly degrades to "Wake to inspect" — a refresh
+        // never silently re-wakes.
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)
         await fake.setService(on: "quiet-frog-5678", Service(name: "custom", cmd: "/usr/bin/thing", args: []))
@@ -73,11 +74,13 @@ struct SpriteDetailTests {
         await model.refresh()
         await model.wakeToInspect()
 
+        await fake.advanceClock(by: 301)
         await fake.setStatus("quiet-frog-5678", .warm)
         await model.refresh()
 
         #expect(model.metadata?.status == .warm)
-        #expect(!model.needsWakeToInspect)
+        #expect(model.needsWakeToInspect)
+        #expect(model.lastError == nil)
         #expect(model.services?.map(\.name) == ["custom"])
     }
 

@@ -9,6 +9,7 @@ public struct SpriteListView: View {
     @State private var showingCreate = false
     @State private var spriteToDelete: SpriteMetadata?
     @State private var path: [String] = []
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(session: Session, platform: SpritesPlatform) {
         self.session = session
@@ -20,22 +21,26 @@ public struct SpriteListView: View {
         NavigationStack(path: $path) {
             Group {
                 if let error = model.lastError {
-                    ContentUnavailableView {
-                        Label("Could not load sprites", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text(String(describing: error))
-                    } actions: {
-                        Button("Retry") {
-                            Task { await model.refresh() }
+                    refreshableUnavailable {
+                        ContentUnavailableView {
+                            Label("Could not load sprites", systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(String(describing: error))
+                        } actions: {
+                            Button("Retry") {
+                                Task { await model.refresh() }
+                            }
                         }
                     }
                 } else if model.hasLoaded && model.sprites.isEmpty {
-                    ContentUnavailableView {
-                        Label("No sprites yet", systemImage: "cube")
-                    } description: {
-                        Text("Create a sprite to get a disposable coding environment.")
-                    } actions: {
-                        Button("Create Sprite") { showingCreate = true }
+                    refreshableUnavailable {
+                        ContentUnavailableView {
+                            Label("No sprites yet", systemImage: "cube")
+                        } description: {
+                            Text("Create a sprite to get a disposable coding environment.")
+                        } actions: {
+                            Button("Create Sprite") { showingCreate = true }
+                        }
                     }
                 } else {
                     List(model.sprites) { sprite in
@@ -88,6 +93,16 @@ public struct SpriteListView: View {
                 }
             }
             .task { await model.refresh() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    Task { await model.refreshOnFocus() }
+                }
+            }
+            .onChange(of: path) { old, new in
+                if new.count < old.count {
+                    Task { await model.refreshOnFocus() }
+                }
+            }
             .sheet(isPresented: $showingCreate) {
                 CreateSpriteView(platform: platform) { _ in
                     Task { await model.refresh() }
@@ -97,6 +112,16 @@ public struct SpriteListView: View {
                 }
             }
         }
+    }
+
+    /// ContentUnavailableView is not scrollable on its own; wrapping keeps
+    /// pull-to-refresh available on the error and empty branches too.
+    private func refreshableUnavailable(@ViewBuilder content: () -> some View) -> some View {
+        ScrollView {
+            content()
+                .containerRelativeFrame([.horizontal, .vertical])
+        }
+        .refreshable { await model.refresh() }
     }
 }
 

@@ -162,4 +162,71 @@ struct T3SetupFlowTests {
         #expect(run.phase == .succeeded)
         #expect(pairing?.code == "otp-12345")
     }
+
+    @Test func reissuingMintsAFreshPairingWithoutRestartingTheFlow() async throws {
+        let fake = await makeFake()
+        await fake.setFile(on: Self.sprite, path: "/home/sprite/.local/bin/t3", content: "#!binary")
+        try await fake.setURLVisibility(sprite: Self.sprite, .public)
+        let pairingCount = Counter()
+        await fake.scriptExec(where: {
+            $0.argv.first == "/home/sprite/.local/bin/t3" && $0.argv.contains("pairing")
+        }) { _, io in
+            let n = await pairingCount.increment()
+            io.stdout(
+                #"{"credential":"otp-\#(n)","pairUrl":"https://morning-cherry-1234-fake.sprites.app/pair#token=otp-\#(n)"}"#
+                    + "\n")
+            io.exit(0)
+        }
+
+        let run = FlowRun(flow: Integrations.t3Code.pairAgainFlow(), platform: fake, sprite: Self.sprite)
+        let responder = Task {
+            var codes: [String] = []
+            while let prompt = await run.nextPrompt() {
+                guard case .t3Pairing(let p) = prompt else {
+                    Issue.record("unexpected prompt \(prompt)")
+                    run.respond(.declined)
+                    continue
+                }
+                codes.append(p.code)
+                run.respond(codes.count == 1 ? .reissue : .acknowledged)
+            }
+            return codes
+        }
+        await run.start()
+        let codes = await responder.value
+
+        #expect(run.phase == .succeeded)
+        #expect(codes == ["otp-1", "otp-2"])
+        #expect(await pairingCount.value == 2)
+    }
+
+    @Test func pairingParsesTheCredentialFieldTheCLIEmits() async throws {
+        // The 0.0.31 CLI emits `credential`, not `token`/`code`; the code
+        // must not depend on the pairUrl-fragment fallback.
+        let fake = await makeFake()
+        await fake.setFile(on: Self.sprite, path: "/home/sprite/.local/bin/t3", content: "#!binary")
+        try await fake.setURLVisibility(sprite: Self.sprite, .public)
+        await fake.scriptExec(where: {
+            $0.argv.first == "/home/sprite/.local/bin/t3" && $0.argv.contains("pairing")
+        }) { _, io in
+            io.stdout(#"{"id":"p1","credential":"CRED456789AB","scopes":[]}"# + "\n")
+            io.exit(0)
+        }
+
+        let run = FlowRun(flow: Integrations.t3Code.pairAgainFlow(), platform: fake, sprite: Self.sprite)
+        let responder = Task {
+            var pairing: T3Pairing?
+            while let prompt = await run.nextPrompt() {
+                if case .t3Pairing(let p) = prompt { pairing = p }
+                run.respond(.acknowledged)
+            }
+            return pairing
+        }
+        await run.start()
+        let pairing = await responder.value
+
+        #expect(run.phase == .succeeded)
+        #expect(pairing?.code == "CRED456789AB")
+        #expect(pairing?.host == "morning-cherry-1234-fake.sprites.app")
+    }
 }

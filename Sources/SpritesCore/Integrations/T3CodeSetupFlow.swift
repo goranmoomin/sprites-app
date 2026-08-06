@@ -174,6 +174,16 @@ struct CreatePairingStep: FlowStep {
         guard let url = metadata.url, let host = url.host() else {
             throw FlowError.failed("The sprite has no URL to pair against.")
         }
+        // Pairings are single-use with a short TTL, so the screen can ask
+        // for a fresh one in place.
+        while true {
+            let pairing = try await Self.createPairing(in: context, host: host)
+            let response = await context.prompt(.t3Pairing(pairing))
+            guard response == .reissue else { return }
+        }
+    }
+
+    private static func createPairing(in context: FlowContext, host: String) async throws -> T3Pairing {
         let result = try await context.platform.runCapturing(on: context.sprite, [
             T3CodeIntegration.binaryPath, "auth", "pairing", "create",
             "--base-url", "https://\(host)",
@@ -183,10 +193,10 @@ struct CreatePairingStep: FlowStep {
         guard result.exitCode == 0 else {
             throw FlowError.failed("t3 auth pairing create exited with status \(result.exitCode).")
         }
-        guard let pairing = Self.parsePairing(result.stdoutText, host: host) else {
+        guard let pairing = parsePairing(result.stdoutText, host: host) else {
             throw FlowError.failed("Could not parse the pairing JSON from t3's output.")
         }
-        _ = await context.prompt(.t3Pairing(pairing))
+        return pairing
     }
 
     static func parsePairing(_ output: String, host: String) -> T3Pairing? {
@@ -198,9 +208,11 @@ struct CreatePairingStep: FlowStep {
         let expiresAt = (object["expiresAt"] as? String).flatMap {
             ISO8601DateFormatter().date(from: $0)
         }
-        // The one-time code is the token, surfaced directly or in the pair
-        // URL fragment.
-        var code = object["token"] as? String ?? object["code"] as? String
+        // The one-time code: the CLI emits `credential` (verified against
+        // 0.0.31 source); older `token`/`code` and the pair URL fragment
+        // stay as fallbacks.
+        var code = object["credential"] as? String
+            ?? object["token"] as? String ?? object["code"] as? String
         if code == nil, let fragment = pairURL?.fragment(),
             let match = fragment.firstMatch(of: /token=([^&]+)/)
         {

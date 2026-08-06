@@ -114,12 +114,7 @@ public struct SpriteDetailView: View {
         Section("Status") {
             LabeledContent("Status", value: model.metadata?.status.display ?? "...")
             if let url = model.metadata?.url {
-                LabeledContent("URL") {
-                    Text(url.absoluteString)
-                        .textSelection(.enabled)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                CopyableValueRow(label: "URL", value: url.absoluteString)
             }
             LabeledContent("URL visibility", value: model.metadata?.urlVisibility.rawValue ?? "...")
         }

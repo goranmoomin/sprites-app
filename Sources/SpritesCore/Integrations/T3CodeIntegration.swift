@@ -8,9 +8,13 @@ public struct T3CodeIntegration: Integration {
     public let provides: [Capability] = [.controlPlane]
     public let requires: [Capability] = [.codingAgent]
 
-    /// The official T3 Code app's URL scheme for the handoff.
-    /// TODO: verify against the shipping T3 Code app (ticket 10 empirical check).
+    /// The official T3 Code app's URL scheme for the handoff (verified
+    /// against the t3code mobile source: scheme `t3code`, prod variant).
     public static let appURL = URL(string: "t3code://")!
+    /// The app's Add Environment screen — the only pairing-aware surface;
+    /// there is no `/pair` route and no universal link (verified in source).
+    /// A pairing URL pasted into its Host field completes pairing.
+    public static let addEnvironmentURL = URL(string: "t3code://connections/new")!
 
     public init() {}
 

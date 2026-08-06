@@ -32,14 +32,24 @@ emits instead of relying on the URL-fragment fallback.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Open T3 Code copies the pairing URL and opens the Add Environment
+- [x] Open T3 Code copies the pairing URL and opens the Add Environment
       screen; not-installed case messages clearly; no browser path exists
-- [ ] Host, Code, and the detail screen's Sprite URL use one shared copyable
+- [x] Host, Code, and the detail screen's Sprite URL use one shared copyable
       row with haptic feedback; QR has context menu and accessibility label
-- [ ] "Copy pairing URL" button is gone; the URL is still copyable
-- [ ] New code mints a fresh pairing in place without restarting the flow
-- [ ] Pairing parse reads the `credential` JSON field; fragment fallback
+- [x] "Copy pairing URL" button is gone; the URL is still copyable
+- [x] New code mints a fresh pairing in place without restarting the flow
+- [x] Pairing parse reads the `credential` JSON field; fragment fallback
       covered by test
 - [ ] End-to-end: pair the official app on a real device via the new handoff
+
+## Comments
+
+Implemented. `CopyableValueRow` (Menu-on-tap + sensory feedback) shared by
+Host, Code, and the sprite URL; QR gains a context menu and accessibility
+label; "Open T3 Code" copies the pairing link then opens
+`t3code://connections/new` with a not-installed fallback message and no
+browser path anywhere; `FlowResponse.reissue` + a prompt loop in the pairing
+step powers "New code"; the parser reads `credential` first. The real-device
+end-to-end handoff remains for a manual pass.

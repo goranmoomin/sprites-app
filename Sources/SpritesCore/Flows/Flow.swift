@@ -39,6 +39,9 @@ public enum FlowResponse: Sendable, Equatable {
     case approved
     case declined
     case acknowledged
+    /// Ask the prompting step to mint a fresh credential and prompt again
+    /// (a Pairing is single-use with a short TTL).
+    case reissue
 }
 
 public enum FlowError: Error, Equatable {

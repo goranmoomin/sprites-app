@@ -46,3 +46,8 @@ churn.
   cases, `SpriteAction.Kind.copy`, structured IntegrationStatus, revoke
   flows, task recognition). The `FlowResponse` addition for ticket 05's
   "New code" is the only prompt-shape change in this wave.
+- Task recognition, concretely: integrations recognizing platform tasks the
+  way they recognize Services. The app recognizes its own hold task
+  (`sprites-app-keep-alive`, now covering Wake to inspect and Keep active);
+  the Claude Code integration recognizes `claude-heartbeat` as "agent
+  working". Groundwork lives in the claude-code-service status endpoint.

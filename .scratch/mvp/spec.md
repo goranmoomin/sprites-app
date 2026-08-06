@@ -65,7 +65,7 @@ All vocabulary in this spec follows `CONTEXT.md`. ADRs 0001 (observed state only
 - Creation is non-transactional: `POST /sprites`, then a skippable playlist of ordinary Flows. Every Flow is also launchable from the detail screen; the detail screen is the recovery UI.
 - Deletion calls the platform delete; one destructive confirmation (concise copy); no archive/soft-delete/export.
 - Checkpoint restore gets no special-case logic: post-restore correctness comes entirely from re-observation.
-- Login UX: SFSafariViewController to the Fly dashboard token page, clipboard-offer on return (system paste prompt), manual paste fallback, immediate validation, Keychain storage.
+- Login UX: SFSafariViewController to the Fly dashboard token page, clipboard-offer on return (system paste prompt), manual paste fallback, immediate validation, Keychain storage. (Superseded by ui-fixes 04: the browser opens the Sprites dashboard page and a format-matched copied token auto-fills the field; the paste prompt fires on the read, submission stays manual.)
 
 ## Testing Decisions
 

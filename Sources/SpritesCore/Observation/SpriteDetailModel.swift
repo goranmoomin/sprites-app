@@ -76,7 +76,7 @@ public final class SpriteDetailModel {
 
     /// Silent refresh for scene activation: skipped when a refresh just
     /// finished (sheet-dismissal handlers already refresh). Shallow first,
-    /// deep only while the sprite is running — focus never wakes (ADR 0001).
+    /// deep only while the sprite is running: focus never wakes (ADR 0001).
     public func refreshOnFocus() async {
         if refreshInFlight == nil, let lastRefreshEnded,
             Date().timeIntervalSince(lastRefreshEnded) < focusRefreshMinimumInterval
@@ -161,7 +161,7 @@ public final class SpriteDetailModel {
         checkpointActivity = nil
     }
 
-    /// Manual checkpoints (the primary list), in version order — probed
+    /// Manual checkpoints (the primary list), in version order: probed
     /// live: create_time is untrustworthy for ordering. Automatic `auto-*`
     /// checkpoints and the Current pseudo-entry stay out of the way.
     public var manualCheckpoints: [Checkpoint] {

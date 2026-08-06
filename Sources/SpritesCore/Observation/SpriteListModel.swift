@@ -64,7 +64,7 @@ public final class SpriteListModel {
     }
 
     /// Silent refresh for scene activation and navigating back: skipped
-    /// when a refresh just finished. Shallow only — never wakes (ADR 0001).
+    /// when a refresh just finished. Shallow only: never wakes (ADR 0001).
     public func refreshOnFocus() async {
         if refreshInFlight == nil, let lastRefreshEnded,
             Date().timeIntervalSince(lastRefreshEnded) < focusRefreshMinimumInterval

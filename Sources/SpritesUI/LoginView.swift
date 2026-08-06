@@ -81,6 +81,8 @@ public struct LoginView: View {
         if SpriteTokenFormat.matches(token) {
             manualToken = token
             errorMessage = nil
+        } else {
+            errorMessage = "The clipboard contents don't look like a Sprite token."
         }
     }
 

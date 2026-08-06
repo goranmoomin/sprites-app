@@ -65,7 +65,7 @@ struct SpriteDetailTests {
     @Test func afterTheWakeHoldLapsesTheScreenAsksToWakeAgain() async throws {
         // Wake to inspect holds the sprite running via a 5-minute task; once
         // that hold expires and the sprite settles, deep observation stops
-        // and the screen honestly degrades to "Wake to inspect" — a refresh
+        // and the screen honestly degrades to "Wake to inspect"; a refresh
         // never silently re-wakes.
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "quiet-frog-5678", status: .cold)

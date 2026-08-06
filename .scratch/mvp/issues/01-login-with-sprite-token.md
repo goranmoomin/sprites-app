@@ -12,3 +12,11 @@
 - [ ] Token persists in the Keychain across app restarts
 - [ ] An invalidated token drops the user back to the login screen
 - [ ] Use-case tests run against the in-memory fake platform; the real client is exercised for the list call shape
+
+## Comments
+
+Superseded in part by `.scratch/ui-fixes/issues/04-login-token-autofill.md`:
+the browser now opens the Sprites dashboard page and a copied token matching
+the captured format auto-fills the token field (no separate "Use copied
+token" button). Manual paste, validation, Keychain storage, and revocation
+behavior are unchanged.

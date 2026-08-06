@@ -217,8 +217,11 @@ struct LivePlatformSmokeTests {
         let remaining = try await platform.checkpoints(on: Self.sprite)
         #expect(!remaining.contains { $0.id == doomed.id })
 
-        await #expect(throws: (any Error).self) {
+        do {
             try await platform.deleteCheckpoint(on: Self.sprite, id: "Current")
+            Issue.record("deleting the active checkpoint unexpectedly succeeded")
+        } catch PlatformError.api(let message) {
+            #expect(message.contains("409"))
         }
     }
 }

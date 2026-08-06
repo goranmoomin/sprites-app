@@ -16,7 +16,7 @@ struct CreateCheckpointView: View {
                 } footer: {
                     Text("Saves the sprite's filesystem so you can roll back after risky work.")
                 }
-                if isCreating, let activity = model.checkpointActivity {
+                if let activity = model.checkpointActivity {
                     Section("Progress") {
                         CheckpointActivityView(activity: activity) {
                             model.dismissCheckpointActivity()
@@ -36,7 +36,13 @@ struct CreateCheckpointView: View {
                         isCreating = true
                         Task {
                             await model.createCheckpoint(comment: comment)
-                            dismiss()
+                            // On failure the sheet stays: the log is the
+                            // evidence and must remain readable.
+                            if model.checkpointActivity?.phase == .succeeded {
+                                dismiss()
+                            } else {
+                                isCreating = false
+                            }
                         }
                     }
                     .disabled(isCreating)

@@ -198,4 +198,27 @@ struct LivePlatformSmokeTests {
         let checkpoints = try await platform.checkpoints(on: Self.sprite)
         #expect(checkpoints.contains { $0.comment == "live smoke" })
     }
+
+    @Test func checkpointDeleteIsUndocumentedButReal() async throws {
+        // Tripwire for the undocumented endpoint (probed 2026-08-04: 204 on
+        // success, 409 on the active checkpoint). If Fly changes it, this
+        // test is the alarm.
+        let platform = Self.platform
+        var events: [CheckpointEvent] = []
+        for try await event in try await platform.createCheckpoint(
+            on: Self.sprite, comment: "live smoke delete")
+        {
+            events.append(event)
+        }
+        let checkpoints = try await platform.checkpoints(on: Self.sprite)
+        let doomed = try #require(checkpoints.last { $0.comment == "live smoke delete" })
+
+        try await platform.deleteCheckpoint(on: Self.sprite, id: doomed.id)
+        let remaining = try await platform.checkpoints(on: Self.sprite)
+        #expect(!remaining.contains { $0.id == doomed.id })
+
+        await #expect(throws: (any Error).self) {
+            try await platform.deleteCheckpoint(on: Self.sprite, id: "Current")
+        }
+    }
 }

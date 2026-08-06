@@ -143,12 +143,35 @@ public final class SpriteDetailModel {
 
     // MARK: Checkpoints
 
-    public private(set) var checkpointProgress: [CheckpointEvent] = []
+    /// One checkpoint operation's visible progress: a status line over the
+    /// streamed log, kept after completion until explicitly dismissed or a
+    /// new operation starts.
+    public struct CheckpointActivity: Equatable {
+        public enum Phase: Equatable {
+            case running, succeeded, failed
+        }
+        public var title: String
+        public var phase: Phase = .running
+        public var log = ""
+    }
 
-    /// Manual checkpoints (the primary list). Automatic `auto-*` checkpoints
-    /// and the Current pseudo-entry stay out of the way.
+    public private(set) var checkpointActivity: CheckpointActivity?
+
+    public func dismissCheckpointActivity() {
+        checkpointActivity = nil
+    }
+
+    /// Manual checkpoints (the primary list), in version order — probed
+    /// live: create_time is untrustworthy for ordering. Automatic `auto-*`
+    /// checkpoints and the Current pseudo-entry stay out of the way.
     public var manualCheckpoints: [Checkpoint] {
-        (checkpoints ?? []).filter { !$0.isAuto && $0.id != "Current" }
+        (checkpoints ?? [])
+            .filter { !$0.isAuto && $0.id != "Current" }
+            .sorted { (ordinal($0), $0.id) < (ordinal($1), $1.id) }
+    }
+
+    private func ordinal(_ checkpoint: Checkpoint) -> Int {
+        Int(checkpoint.id.dropFirst()) ?? .max
     }
 
     public var automaticCheckpoints: [Checkpoint] {
@@ -156,7 +179,9 @@ public final class SpriteDetailModel {
     }
 
     public func createCheckpoint(comment: String) async {
-        await streamCheckpointOperation {
+        await streamCheckpointOperation(
+            title: "Creating checkpoint...", doneTitle: "Checkpoint created"
+        ) {
             try await $0.createCheckpoint(on: $1, comment: comment)
         }
     }
@@ -164,24 +189,50 @@ public final class SpriteDetailModel {
     /// Destructive; rolls back agent logins, services, and Pairing made
     /// after the checkpoint. Afterwards the screen simply re-observes.
     public func restoreCheckpoint(id: String) async {
-        await streamCheckpointOperation {
+        await streamCheckpointOperation(
+            title: "Restoring \(id)...", doneTitle: "Restored \(id)"
+        ) {
             try await $0.restoreCheckpoint(on: $1, id: id)
         }
     }
 
+    public func deleteCheckpoint(id: String) async {
+        do {
+            try await platform.deleteCheckpoint(on: sprite, id: id)
+        } catch {
+            lastError = error
+            session?.handle(error)
+            return
+        }
+        await refresh()
+    }
+
     private func streamCheckpointOperation(
+        title: String, doneTitle: String,
         _ operation: (SpritesPlatform, String) async throws -> AsyncThrowingStream<CheckpointEvent, Error>
     ) async {
-        checkpointProgress = []
+        var activity = CheckpointActivity(title: title)
+        checkpointActivity = activity
+        func append(_ line: String) {
+            activity.log = activity.log.isEmpty ? line : activity.log + "\n" + line
+        }
         do {
             for try await event in try await operation(platform, sprite) {
-                checkpointProgress.append(event)
+                if let message = event.message {
+                    append(message)
+                    checkpointActivity = activity
+                }
             }
+            activity.title = doneTitle
+            activity.phase = .succeeded
         } catch {
             // Active sessions dropping mid-restore is tolerated: what matters
-            // is what re-observation finds.
-            checkpointProgress.append(CheckpointEvent(type: "error", message: String(describing: error)))
+            // is what re-observation finds. The log keeps the evidence.
+            append(String(describing: error))
+            activity.title = "Checkpoint operation failed"
+            activity.phase = .failed
         }
+        checkpointActivity = activity
         await refresh()
     }
 

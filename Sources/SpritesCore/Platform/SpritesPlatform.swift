@@ -30,6 +30,9 @@ public protocol SpritesPlatform: Sendable {
     /// Destructive restore: captures disk, not running processes.
     func restoreCheckpoint(on sprite: String, id: String)
         async throws -> AsyncThrowingStream<CheckpointEvent, Error>
+    /// Deletes a checkpoint. Undocumented endpoint pinned by the live smoke
+    /// test; the platform refuses the active checkpoint (409).
+    func deleteCheckpoint(on sprite: String, id: String) async throws
 
     // MARK: Services (deep; wakes a cold Sprite)
     /// Creates or updates a service, streaming the platform's NDJSON progress.

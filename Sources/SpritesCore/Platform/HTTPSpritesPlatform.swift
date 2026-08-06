@@ -263,6 +263,12 @@ public struct HTTPSpritesPlatform: SpritesPlatform {
         }
     }
 
+    public func deleteCheckpoint(on sprite: String, id: String) async throws {
+        // Undocumented but real, probed live: 204 on success, 409 on the
+        // active checkpoint, 404 on unknown ids.
+        _ = try await send(request("DELETE", "/v1/sprites/\(sprite)/checkpoints/\(id)"))
+    }
+
     public func upsertService(on sprite: String, named name: String, definition: ServiceDefinition)
         async throws -> AsyncThrowingStream<ServiceUpsertEvent, Error>
     {

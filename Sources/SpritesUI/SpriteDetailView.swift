@@ -8,6 +8,7 @@ public struct SpriteDetailView: View {
     @State private var activeFlow: Flow?
     @State private var showingCreateCheckpoint = false
     @State private var checkpointToRestore: Checkpoint?
+    @State private var checkpointToDelete: Checkpoint?
     /// Delete ownership lives with the sprite list model; this seam calls
     /// through to it and reports the failure, if any.
     private let deleteSprite: (String) async -> Error?
@@ -97,21 +98,6 @@ public struct SpriteDetailView: View {
         }
         .sheet(isPresented: $showingCreateCheckpoint) {
             CreateCheckpointView(model: model)
-        }
-        .confirmationDialog(
-            "Restore \(checkpointToRestore?.id ?? "checkpoint")?",
-            isPresented: Binding(
-                get: { checkpointToRestore != nil },
-                set: { if !$0 { checkpointToRestore = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: checkpointToRestore
-        ) { checkpoint in
-            Button("Restore Checkpoint", role: .destructive) {
-                Task { await model.restoreCheckpoint(id: checkpoint.id) }
-            }
-        } message: { _ in
-            Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
         }
     }
 
@@ -263,17 +249,58 @@ public struct SpriteDetailView: View {
         }
 
         Section {
+            if let activity = model.checkpointActivity {
+                CheckpointActivityView(activity: activity) {
+                    model.dismissCheckpointActivity()
+                }
+            }
             if model.manualCheckpoints.isEmpty {
                 Text("No checkpoints")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.manualCheckpoints) { checkpoint in
+                    let operationRunning = model.checkpointActivity?.phase == .running
                     LabeledContent(checkpoint.id, value: checkpoint.comment ?? "")
                         .swipeActions {
-                            Button("Restore") {
-                                checkpointToRestore = checkpoint
+                            if !operationRunning {
+                                Button("Restore") {
+                                    checkpointToRestore = checkpoint
+                                }
+                                .tint(.orange)
+                                Button("Delete", role: .destructive) {
+                                    checkpointToDelete = checkpoint
+                                }
                             }
-                            .tint(.orange)
+                        }
+                        // Anchored to the row: iOS 26 presents these as
+                        // popovers pointing at the source view.
+                        .confirmationDialog(
+                            "Restore \(checkpoint.id)?",
+                            isPresented: Binding(
+                                get: { checkpointToRestore?.id == checkpoint.id },
+                                set: { if !$0 { checkpointToRestore = nil } }
+                            ),
+                            titleVisibility: .visible
+                        ) {
+                            Button("Restore Checkpoint", role: .destructive) {
+                                Task { await model.restoreCheckpoint(id: checkpoint.id) }
+                            }
+                        } message: {
+                            Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
+                        }
+                        .confirmationDialog(
+                            "Delete \(checkpoint.id)?",
+                            isPresented: Binding(
+                                get: { checkpointToDelete?.id == checkpoint.id },
+                                set: { if !$0 { checkpointToDelete = nil } }
+                            ),
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete Checkpoint", role: .destructive) {
+                                Task { await model.deleteCheckpoint(id: checkpoint.id) }
+                            }
+                        } message: {
+                            Text("This permanently removes the checkpoint. It cannot be restored afterwards.")
                         }
                 }
             }
@@ -292,15 +319,47 @@ public struct SpriteDetailView: View {
         } header: {
             Text("Checkpoints")
         } footer: {
-            Text("Swipe a checkpoint to restore it.")
+            Text("Swipe a checkpoint to restore or delete it.")
         }
+    }
+}
 
-        if !model.checkpointProgress.isEmpty {
-            Section("Checkpoint progress") {
-                ForEach(Array(model.checkpointProgress.enumerated()), id: \.offset) { _, event in
-                    Text(event.message ?? event.type)
-                        .font(.caption.monospaced())
+/// A checkpoint operation's status line over its streamed log: the log is a
+/// log, one selectable monospaced block, kept readable after completion.
+struct CheckpointActivityView: View {
+    let activity: SpriteDetailModel.CheckpointActivity
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                switch activity.phase {
+                case .running:
+                    ProgressView()
+                case .succeeded:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .failed:
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
                 }
+                Text(activity.title)
+                Spacer()
+                if activity.phase != .running {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Dismiss checkpoint log")
+                }
+            }
+            if !activity.log.isEmpty {
+                Text(activity.log)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

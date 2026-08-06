@@ -243,6 +243,18 @@ public actor FakeSpritesPlatform: SpritesPlatform {
         return checkpointLists[sprite] ?? []
     }
 
+    public func deleteCheckpoint(on sprite: String, id: String) async throws {
+        _ = try deepTouch(sprite)
+        guard id != "Current" else {
+            throw PlatformError.api("cannot delete active checkpoint")
+        }
+        guard checkpointLists[sprite]?.contains(where: { $0.id == id }) == true else {
+            throw PlatformError.notFound
+        }
+        checkpointLists[sprite]?.removeAll { $0.id == id }
+        checkpointContents[sprite]?.removeValue(forKey: id)
+    }
+
     public func createCheckpoint(on sprite: String, comment: String)
         async throws -> AsyncThrowingStream<CheckpointEvent, Error>
     {

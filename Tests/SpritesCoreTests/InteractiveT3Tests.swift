@@ -93,13 +93,13 @@ struct InteractiveT3Tests {
         // 5. Checkpoint: create with comment, list, then restore it and
         // re-observe (service and login must survive a same-state restore).
         await detail.createCheckpoint(comment: "fully set up")
-        note("### CHECKPOINT_PROGRESS \(detail.checkpointProgress.map(\.type))")
+        note("### CHECKPOINT_PROGRESS \(detail.checkpointActivity?.phase ?? .failed) \(detail.checkpointActivity?.log.count ?? 0) bytes")
         let checkpoint = detail.manualCheckpoints.last
         note("### CHECKPOINT \(checkpoint?.id ?? "none") comment=\(checkpoint?.comment ?? "-")")
 
         if let checkpoint {
             await detail.restoreCheckpoint(id: checkpoint.id)
-            note("### RESTORE_PROGRESS \(detail.checkpointProgress.map(\.type))")
+            note("### RESTORE_PROGRESS \(detail.checkpointActivity?.phase ?? .failed) \(detail.checkpointActivity?.log.count ?? 0) bytes")
             await detail.refresh()
             note("### POST_RESTORE claude=\(detail.integrationLines?.first { $0.title == "Claude Code" }?.summary ?? "?") t3=\(detail.integrationLines?.first { $0.title == "T3 Code" }?.summary ?? "?")")
         }

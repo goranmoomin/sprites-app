@@ -27,15 +27,26 @@ ordinal, not `create_time` (probed untrustworthy).
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Platform seam + fake support checkpoint deletion; live smoke test pins
+- [x] Platform seam + fake support checkpoint deletion; live smoke test pins
       204 on delete, 409 on the active checkpoint
-- [ ] Manual checkpoints: swipe Delete with anchored confirm; Current
+- [x] Manual checkpoints: swipe Delete with anchored confirm; Current
       undeletable; automatic checkpoints visible but restore-only
-- [ ] Create and restore both show status line + monospaced streaming log;
+- [x] Create and restore both show status line + monospaced streaming log;
       restore progress appears inline in the Checkpoints section
-- [ ] Completed log persists with a resolved status line and an explicit
+- [x] Completed log persists with a resolved status line and an explicit
       dismiss; starting a new operation or leaving the screen clears it
-- [ ] The permanent checkpoint-progress section no longer exists
-- [ ] List ordering uses the version ordinal
+- [x] The permanent checkpoint-progress section no longer exists
+- [x] List ordering uses the version ordinal
+
+## Comments
+
+Implemented. `deleteCheckpoint` on the platform seam (HTTP DELETE, fake with
+Current/notFound refusals) plus a live smoke test pinning the undocumented
+endpoint. `checkpointProgress` replaced by `CheckpointActivity` (title,
+phase, accumulated log) rendered by one `CheckpointActivityView` used both
+inline in the Checkpoints section and in the create sheet. Restore/delete
+confirms are per-row anchored dialogs; swipe actions hide while an operation
+runs. The live smoke case still needs one run against a real sprite
+(`SPRITES_LIVE_TOKEN`/`SPRITES_LIVE_SPRITE`) to check the pin.

@@ -16,11 +16,10 @@ struct CreateCheckpointView: View {
                 } footer: {
                     Text("Saves the sprite's filesystem so you can roll back after risky work.")
                 }
-                if isCreating {
+                if isCreating, let activity = model.checkpointActivity {
                     Section("Progress") {
-                        ForEach(Array(model.checkpointProgress.enumerated()), id: \.offset) { _, event in
-                            Text(event.message ?? event.type)
-                                .font(.caption.monospaced())
+                        CheckpointActivityView(activity: activity) {
+                            model.dismissCheckpointActivity()
                         }
                     }
                 }

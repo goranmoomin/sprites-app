@@ -60,6 +60,15 @@ struct InteractiveLoginTests {
                 run.respond(.declined)
                 return
             }
+            // Shape capture for the clipboard-matcher design: length and
+            // charset classes, never the code itself.
+            let classes = [
+                ("alnum", code.allSatisfy { $0.isLetter || $0.isNumber }),
+                ("has-#", code.contains("#")),
+                ("has--", code.contains("-")),
+                ("has-_", code.contains("_")),
+            ]
+            note("### CODE SHAPE \(code.count) chars, \(classes.filter(\.1).map(\.0).joined(separator: ","))")
             note("### CODE RECEIVED (\(code.count) chars); SUBMITTING")
             run.respond(.text(code))
         }

@@ -5,15 +5,15 @@ import SpritesCore
 import SafariServices
 import UIKit
 
-/// Where Sprite tokens are created. Opened in an in-app browser.
-private let tokenPageURL = URL(string: "https://fly.io/dashboard/personal/tokens")!
+/// Where Sprite tokens live. Opened in an in-app browser.
+private let dashboardURL = URL(string: "https://fly.io/dashboard/personal/sprites")!
 
 public struct LoginView: View {
     @Bindable var session: Session
 
     @State private var manualToken = ""
     @State private var showingBrowser = false
-    @State private var returnedFromBrowser = false
+    @State private var pasteboardCountAtPresent: Int?
     @State private var isValidating = false
     @State private var errorMessage: String?
 
@@ -26,34 +26,16 @@ public struct LoginView: View {
             Form {
                 Section {
                     Button {
+                        pasteboardCountAtPresent = UIPasteboard.general.changeCount
                         showingBrowser = true
                     } label: {
-                        Label("Create Sprite token", systemImage: "safari")
+                        Label("Open Fly dashboard", systemImage: "safari")
                     }
                 } footer: {
-                    Text("Log in to Fly, create a Sprite token, and copy it.")
+                    Text("Log in to Fly and copy your Sprite token from the dashboard. It fills in below automatically.")
                 }
 
-                if returnedFromBrowser && UIPasteboard.general.hasStrings {
-                    Section {
-                        Button {
-                            // Reading triggers the system paste prompt.
-                            guard let copied = UIPasteboard.general.string else { return }
-                            let token = copied.trimmingCharacters(in: .whitespacesAndNewlines)
-                            // A token is one long opaque word; anything else
-                            // is probably not what the user meant to paste.
-                            guard token.count >= 20, !token.contains(where: \.isWhitespace) else {
-                                errorMessage = "The clipboard contents don't look like a Sprite token."
-                                return
-                            }
-                            logIn(with: token)
-                        } label: {
-                            Label("Use copied token", systemImage: "doc.on.clipboard")
-                        }
-                    }
-                }
-
-                Section("Paste token") {
+                Section("Sprite token") {
                     SecureField("Sprite token", text: $manualToken)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -80,10 +62,25 @@ public struct LoginView: View {
                 }
             }
             .navigationTitle("Sprites")
-            .sheet(isPresented: $showingBrowser, onDismiss: { returnedFromBrowser = true }) {
-                SafariView(url: tokenPageURL)
+            .sheet(isPresented: $showingBrowser, onDismiss: autoFillFromPasteboard) {
+                SafariView(url: dashboardURL)
                     .ignoresSafeArea()
             }
+        }
+    }
+
+    /// Fills the token field when something was copied during the dashboard
+    /// visit and it looks like a Sprite token. The read itself shows the
+    /// system paste alert; nothing is submitted without the Log in tap.
+    private func autoFillFromPasteboard() {
+        guard let before = pasteboardCountAtPresent,
+            UIPasteboard.general.changeCount != before,
+            let copied = UIPasteboard.general.string
+        else { return }
+        let token = copied.trimmingCharacters(in: .whitespacesAndNewlines)
+        if SpriteTokenFormat.matches(token) {
+            manualToken = token
+            errorMessage = nil
         }
     }
 

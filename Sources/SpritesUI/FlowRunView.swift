@@ -2,6 +2,8 @@ import SwiftUI
 import SpritesCore
 
 #if os(iOS)
+import UIKit
+
 /// Generic native UI for a Flow run: step list, prompt UI (open-URL button,
 /// code paste field, consent), and the raw-output failure surface with
 /// retry. No terminal emulator (ADR 0002).
@@ -120,6 +122,8 @@ struct FlowPromptView: View {
     let prompt: FlowPrompt
     let respond: (FlowResponse) -> Void
     @State private var code = ""
+    @State private var pasteboardCount = UIPasteboard.general.changeCount
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         switch prompt {
@@ -137,6 +141,18 @@ struct FlowPromptView: View {
                     respond(.text(code))
                 }
                 .disabled(code.isEmpty)
+            }
+            // The sign-in link leaves the app; coming back with a freshly
+            // copied code fills the field. The read shows the system paste
+            // alert, and nothing is submitted without the button tap.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                let count = UIPasteboard.general.changeCount
+                guard count != pasteboardCount else { return }
+                pasteboardCount = count
+                if let copied = UIPasteboard.general.string {
+                    code = copied.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
             }
         case .consent(let title, let message, let approveTitle):
             Section(title) {

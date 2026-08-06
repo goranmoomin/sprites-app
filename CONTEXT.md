@@ -5,7 +5,7 @@ iOS app for provisioning disposable Fly Sprites as remote coding environments: l
 ## Language
 
 **Sprite token**:
-The credential the user pastes after logging into Fly in the in-app browser. The app's unit of access: everything the app sees is scoped to a token. One token in the MVP; a revoked token returns the user to the login screen.
+The credential the user copies from the Fly dashboard after logging in through the in-app browser; the app detects the copied token and fills it in for confirmation. The app's unit of access: everything the app sees is scoped to a token. One token in the MVP; a revoked token returns the user to the login screen.
 _Avoid_: Sprites token, organization, account, workspace, "connect" (collides with the platform's Connectors)
 
 **Sprite**:

@@ -31,16 +31,28 @@ describe the old paste-prompt-on-tap design as resolved behavior.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Browser button opens the Sprites dashboard page; no auto-present on
+- [x] Browser button opens the Sprites dashboard page; no auto-present on
       appear, after a rejected token, or after mid-session logout
-- [ ] Copy token in browser, dismiss: system paste alert appears once, field
+- [x] Copy token in browser, dismiss: system paste alert appears once, field
       is filled on match, nothing auto-submits
-- [ ] Nothing copied during the visit: no alert, no read
-- [ ] Token matcher in SpritesCore with unit tests; mismatch falls back to
+- [x] Nothing copied during the visit: no alert, no read
+- [x] Token matcher in SpritesCore with unit tests; mismatch falls back to
       manual entry with the existing error copy
-- [ ] Claude flow: returning to the app with a fresh clipboard fills the code
+- [x] Claude flow: returning to the app with a fresh clipboard fills the code
       field; submit stays manual
 - [ ] Interactive rig run captures the real Claude code shape (recorded in
       findings); docs updated
+
+## Comments
+
+Implemented. `SpriteTokenFormat` in SpritesCore (unit-tested); LoginView
+opens `/dashboard/personal/sprites`, snapshots the pasteboard change count
+per visit, and fills the SecureField on dismissal when the pasteboard
+changed and matches — no auto-submit, manual entry unchanged as fallback.
+The Claude prompt fills its code field on scene reactivation with a fresh
+pasteboard (unvalidated by design until the shape is captured). The
+interactive rig now logs the code's length/charset classes; the actual
+capture run needs a live login session, so that box stays open. CONTEXT.md
+Sprite-token entry updated; mvp docs left as historical record.

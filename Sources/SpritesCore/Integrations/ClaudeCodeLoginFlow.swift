@@ -93,12 +93,42 @@ public enum ClaudeOutputParser {
     /// marker: a reworded CLI must fail visibly, not silently.
     public static let mintedTokenMarker = "Your OAuth token"
 
+    /// Observed live: the token renders in an Ink box that wraps it across
+    /// screen lines at the box width regardless of PTY cols, so extraction
+    /// is line-based: the token starts at its prefix and continuation
+    /// lines consisting purely of token characters are joined, until any
+    /// other text ("Store this token securely.") ends it.
     public static func extractSetupToken(from raw: String) -> String? {
-        let visible = stripANSI(raw)
-        guard let marker = visible.range(of: mintedTokenMarker) else { return nil }
-        guard let match = visible[marker.upperBound...].firstMatch(of: /sk-ant-oat01-[A-Za-z0-9_-]+/)
+        let lines = visibleLines(raw)
+        guard let markerIndex = lines.firstIndex(where: { $0.contains(mintedTokenMarker) })
         else { return nil }
-        return String(match.0)
+        for index in markerIndex..<lines.count {
+            guard let match = lines[index].firstMatch(of: /sk-ant-oat01-[A-Za-z0-9_-]+/)
+            else { continue }
+            var token = String(match.0)
+            // Wrapped only when the fragment runs to its line's very end.
+            guard match.range.upperBound == lines[index].endIndex else { return token }
+            for line in lines[(index + 1)...] {
+                guard line.wholeMatch(of: /[A-Za-z0-9_-]+/) != nil else { break }
+                token += line
+            }
+            return token
+        }
+        return nil
+    }
+
+    /// Screen lines as a reader would see them. Ink repaints with cursor
+    /// movement rather than newlines (observed live), so every escape
+    /// sequence except SGR styling is a layout break, never zero-width
+    /// glue: deleting them would fuse adjacent screen lines.
+    static func visibleLines(_ raw: String) -> [String] {
+        raw
+            .replacing(/\u{1b}\][^\u{07}\u{1b}]*(\u{07}|\u{1b}\\)/, with: "")  // OSC
+            .replacing(/\u{1b}\[[0-9;:<=>?]*m/, with: "")  // SGR styling: zero-width
+            .replacing(/\u{1b}\[[0-9;:<=>?]*[ -\/]*[@-~]/, with: "\n")  // CSI movement/erase
+            .replacing(/\u{1b}./, with: "\n")  // remaining escapes
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
     public static func stripANSI(_ text: String) -> String {
@@ -382,25 +412,26 @@ struct ClaudeLoginStep: FlowStep {
         // The consent choice: save to the app for reuse on other Sprites,
         // or use here only. Planted on this sprite either way; declining
         // save just means the next sprite mints again.
+        var save = false
         switch await context.prompt(.claudeMintedToken(token: token)) {
-        case .declined:
-            throw FlowError.declined
-        case .approved:
-            store.save(SavedClaudeLogin(token: token, mintedAt: Date()))
-            context.output("Saved the login for reuse on other Sprites\n")
-        default:
-            break
+        case .declined: throw FlowError.declined
+        case .approved: save = true
+        default: break
         }
         try await ClaudeCodeIntegration.plantToken(
             token, on: context.sprite, platform: context.platform)
         context.output("Planted the token into \(ClaudeCodeIntegration.settingsPath)\n")
 
-        // Mint-branch verify failure only reports: a token straight off
-        // the mint failing the probe is an entitlement problem, not a
-        // stale-credential one, so nothing is forgotten.
+        // Mint-branch verify failure only reports; but the save waits for
+        // the verify to pass or be skipped, so a token that just failed
+        // verification is never the one saved for other Sprites.
         if try await verifyIfWanted(in: context) == false {
             throw FlowError.failed(
                 "The minted token failed the verification probe. Retry to mint again.")
+        }
+        if save {
+            store.save(SavedClaudeLogin(token: token, mintedAt: Date()))
+            context.output("Saved the login for reuse on other Sprites\n")
         }
     }
 }

@@ -25,10 +25,16 @@ struct ClaudeCodeLoginFlowTests {
                 io.exit(1)
                 return
             }
+            // The token print wraps like the live Ink box does (observed:
+            // ~80-col fragments joined by cursor movement, then the
+            // "Store this token" line).
+            let wrap = mintedToken.index(mintedToken.startIndex, offsetBy: 79)
             io.stdout(
                 "\r\n\u{2713} Long-lived authentication token created successfully!\r\n"
                     + "Your OAuth token (valid for 1 year):\r\n"
-                    + "\(mintedToken)\r\n")
+                    + "\u{1b}[38;5;220m\(mintedToken[..<wrap])\u{1b}[1C\u{1b}[1B"
+                    + "\(mintedToken[wrap...])\u{1b}[1C\u{1b}[2B"
+                    + "\u{1b}[38;5;246mStore this token securely. You won't be able to see it again.\u{1b}[39m\r\n")
             io.exit(0)
         }
         await scriptAuthStatus(fake, sprite: sprite)
@@ -281,6 +287,26 @@ struct ClaudeCodeLoginFlowTests {
         // Anchored: a transcript without the marker yields nothing, even
         // with a token-shaped string in it.
         #expect(ClaudeOutputParser.extractSetupToken(from: "Token: \(token)") == nil)
+    }
+
+    /// The failure observed in production: the Ink box wraps the token at
+    /// its own width regardless of PTY cols, joining fragments with cursor
+    /// movement, and the trailing "Store this token" advice must not be
+    /// absorbed. Both observed break shapes: movement-only, and a literal
+    /// newline between fragments.
+    @Test func extractsTheMintedTokenAcrossTheLiveWrappedShapes() throws {
+        let first = "sk-ant-oat01-EZkFAKEjB9x-7XgdTBNqsI7WDsh0NlWbl40muJoaomBOj_m3IY3kZx-R5yu2hqzhs9"
+        let second = "1uBPEiuZx2MeOXbsFFBRUew-HZHIIQAA"
+        #expect(first.count == 79)
+        for fragmentBreak in ["\u{1b}[1C\u{1b}[1B", "\r\n"] {
+            let transcript = "\u{1b}[1C\u{1b}[1BYour OAuth token (valid for 1 year):\u{1b}[K\u{1b}[1C\u{1b}[1B\u{1b}[K"
+                + "\u{1b}[1C\u{1b}[1B\u{1b}[38;5;220m\(first)\(fragmentBreak)\(second)\u{1b}[1C\u{1b}[2B"
+                + "\u{1b}[38;5;246mStore this token securely. You won't be able to see it again.\u{1b}[1C\u{1b}[1B\u{1b}[39m\u{1b}[K"
+                + "\u{1b}[1C\u{1b}[1B\u{1b}[38;5;246mUse this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>\u{1b}[39m\u{1b}[K"
+            #expect(
+                ClaudeOutputParser.extractSetupToken(from: transcript) == first + second,
+                "break \(fragmentBreak.debugDescription)")
+        }
     }
 
     @Test func rewordedPromptFailsVisiblyWithRawOutput() async throws {

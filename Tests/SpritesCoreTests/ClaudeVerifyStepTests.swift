@@ -119,8 +119,9 @@ struct ClaudeVerifyStepTests {
 
         #expect(run.phase == .failed)
         #expect(run.failureMessage?.contains("verification probe") == true)
-        // Nothing forgotten: the save made at consent time stands.
-        #expect(store.load()?.token == ClaudeCodeLoginFlowTests.mintedToken)
+        // The save waits for the verify: a token that just failed the
+        // probe never becomes the saved login.
+        #expect(store.load() == nil)
     }
 
     @Test func hungProbeFailsTheStepButLeavesThePlantInPlace() async throws {

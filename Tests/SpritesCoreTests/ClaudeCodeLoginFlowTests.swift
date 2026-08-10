@@ -311,6 +311,8 @@ struct ClaudeCodeLoginFlowTests {
     @Test func rewordedTokenPrintFailsVisibly() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        await fake.setFile(
+            on: "morning-cherry-1234", path: "/tmp/xdg-open.log", content: "FOUND_URL: ...")
         await fake.scriptExec(where: { $0.argv == ["claude", "setup-token"] }) { _, io in
             io.stdout(
                 "Browser didn't open? Use the url below to sign in (c to copy)\r\n"
@@ -336,6 +338,8 @@ struct ClaudeCodeLoginFlowTests {
         #expect(run.failureMessage?.contains("minted token") == true)
         #expect(await fake.fileContents(
             on: "morning-cherry-1234", path: "/home/sprite/.claude/settings.json") == nil)
+        // The authorize-URL residue is swept on failure paths too.
+        #expect(await fake.fileContents(on: "morning-cherry-1234", path: "/tmp/xdg-open.log") == nil)
     }
 
     /// The observed iOS failure: suspension kills the WebSocket during the

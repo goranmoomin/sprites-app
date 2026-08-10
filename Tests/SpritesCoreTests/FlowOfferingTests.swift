@@ -31,8 +31,7 @@ struct FlowOfferingTests {
 
     @Test func fullySetUpSpriteOffersOnlyPairAgain() async throws {
         let fake = await makeFake()
-        await fake.setFile(
-            on: Self.sprite, path: "/home/sprite/.claude/.credentials.json", content: "{}")
+        await ClaudeCodeLoginFlowTests.plantLoggedIn(fake, sprite: Self.sprite)
         await fake.setService(on: Self.sprite, t3Service(status: .running))
         let model = SpriteDetailModel(platform: fake, sprite: Self.sprite)
 
@@ -43,8 +42,7 @@ struct FlowOfferingTests {
 
     @Test func stoppedT3ServiceOffersPairAgainAndSetup() async throws {
         let fake = await makeFake()
-        await fake.setFile(
-            on: Self.sprite, path: "/home/sprite/.claude/.credentials.json", content: "{}")
+        await ClaudeCodeLoginFlowTests.plantLoggedIn(fake, sprite: Self.sprite)
         await fake.setService(on: Self.sprite, t3Service(status: .stopped))
         let model = SpriteDetailModel(platform: fake, sprite: Self.sprite)
 

@@ -71,6 +71,13 @@ struct InteractiveLoginTests {
             note("### CODE SHAPE \(code.count) chars, \(classes.filter(\.1).map(\.0).joined(separator: ","))")
             note("### CODE RECEIVED (\(code.count) chars); SUBMITTING")
             run.respond(.text(code))
+            // The minted-token screen: shape only, never the token itself.
+            if case .claudeMintedToken(let token) = await run.nextPrompt() {
+                note("### TOKEN CAPTURED (\(token.count) chars, prefix \(token.prefix(13)))")
+                run.respond(.acknowledged)
+            } else {
+                note("### NO TOKEN PROMPT")
+            }
         }
         await run.start()
         await responder.value

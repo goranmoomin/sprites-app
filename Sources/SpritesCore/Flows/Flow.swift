@@ -32,6 +32,9 @@ public enum FlowPrompt: Sendable, Equatable {
     case consent(title: String, message: String, approveTitle: String)
     /// Show the T3 Pairing credential (defined with the T3 integration).
     case t3Pairing(T3Pairing)
+    /// Show the minted Claude setup-token (homed with the Claude Code
+    /// integration's login Flow).
+    case claudeMintedToken(token: String)
 }
 
 public enum FlowResponse: Sendable, Equatable {

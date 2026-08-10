@@ -15,7 +15,7 @@ struct CreateSpritePlaylistTests {
     }
 
     private func scriptHappyDialogues(_ fake: FakeSpritesPlatform) async {
-        await ClaudeCodeLoginFlowTests.scriptHappyClaudeLogin(fake, sprite: Self.sprite)
+        await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: Self.sprite)
         await fake.scriptExec(where: { $0.argv.first == "npm" && $0.argv.last == "t3" }) { _, io in
             await fake.setFile(
                 on: Self.sprite, path: "/home/sprite/.local/bin/t3", content: "#!bin")
@@ -35,6 +35,7 @@ struct CreateSpritePlaylistTests {
                 case .openURLAndEnterCode: run.respond(.text("auth-code-42"))
                 case .consent: run.respond(.approved)
                 case .t3Pairing: run.respond(.acknowledged)
+                case .claudeMintedToken: run.respond(.acknowledged)
                 }
             }
         }

@@ -5,54 +5,103 @@ import SpritesCore
 @MainActor
 struct ClaudeCodeLoginFlowTests {
     nonisolated static let oauthURL = "https://claude.ai/oauth/authorize?code=true&client_id=abc"
+    nonisolated static let mintedToken =
+        "sk-ant-oat01-FAKEFAKE_fake-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    /// The transcript shape observed on a real sprite: spinner ANSI, then
-    /// the sign-in prompt with the OAuth URL, then the masked paste field.
-    /// On success `claude auth login` writes the documented credential file
-    /// itself, which the script mirrors.
-    nonisolated static func scriptHappyClaudeLogin(_ fake: FakeSpritesPlatform, sprite: String = "morning-cherry-1234") async {
-        await fake.scriptExec(where: { $0.argv == ["claude", "auth", "login", "--claudeai"] && $0.tty }) { _, io in
-            io.stdout("\u{1b}[2J\u{1b}[?25l\u{1b}[38;5;215m*\u{1b}[0m Signing in...\r\n")
+    /// The transcript shape observed on a real sprite (claude v2.1.220):
+    /// spinner ANSI, the sign-in prompt with the OAuth URL as an OSC-8
+    /// hyperlink, the masked paste field, then the minted token printed
+    /// under "Your OAuth token". setup-token persists nothing on the
+    /// sprite; the flow's plant is what logs it in.
+    nonisolated static func scriptHappySetupToken(_ fake: FakeSpritesPlatform, sprite: String = "morning-cherry-1234") async {
+        await fake.scriptExec(where: { $0.argv == ["claude", "setup-token"] && $0.tty }) { _, io in
+            io.stdout("\u{1b}[2J\u{1b}[?25l\u{1b}[38;5;215m*\u{1b}[0m Opening browser to sign in...\r\n")
             io.stdout(
-                "If your browser didn't open, visit: \(oauthURL)\r\n"
-                    + "Paste code here if prompted > ")
+                "\u{1b}[38;2;153;153;153mBrowser didn't open? Use the url below to sign in (c to copy)\u{1b}[39m\r\n"
+                    + "\u{1b}]8;id=tok1;\(oauthURL)\u{1b}\\visible url text\u{1b}]8;;\u{1b}\\\r\n"
+                    + " Paste code here if prompted > ")
             guard let code = await io.readLine(), code == "auth-code-42" else {
                 io.stdout("Invalid code. Please try again.\r\n")
                 io.exit(1)
                 return
             }
-            await fake.setFile(
-                on: sprite,
-                path: "/home/sprite/.claude/.credentials.json",
-                content: #"{"claudeAiOauth":{"accessToken":"sk-ant-oat01-fake"}}"#)
-            io.stdout("Login successful.\r\n")
+            io.stdout(
+                "\r\n\u{2713} Long-lived authentication token created successfully!\r\n"
+                    + "Your OAuth token (valid for 1 year):\r\n"
+                    + "\(mintedToken)\r\n")
             io.exit(0)
         }
         await scriptAuthStatus(fake, sprite: sprite)
+        await scriptFileRemoval(fake, sprite: sprite)
     }
 
-    /// `claude auth status --json` answers from the credential store, like
-    /// the real CLI.
+    /// `claude auth status --json` answers like the real CLI: from the
+    /// settings env token or the legacy credential store, exiting 1 when
+    /// logged out (the app must parse the JSON, never the exit code).
     nonisolated static func scriptAuthStatus(_ fake: FakeSpritesPlatform, sprite: String) async {
         await fake.scriptExec(where: { $0.argv == ["claude", "auth", "status", "--json"] }) { _, io in
-            let loggedIn = await fake.fileContents(
-                on: sprite, path: "/home/sprite/.claude/.credentials.json") != nil
-            io.stdout(#"{"loggedIn": "# + (loggedIn ? "true" : "false") + "}\n")
+            let settings = await fake.fileContents(
+                on: sprite, path: "/home/sprite/.claude/settings.json")
+            let envToken = settings
+                .flatMap { (try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? [String: Any] }
+                .flatMap { $0["env"] as? [String: Any] }
+                .flatMap { $0["CLAUDE_CODE_OAUTH_TOKEN"] as? String }
+            let credentials = await fake.fileContents(
+                on: sprite, path: "/home/sprite/.claude/.credentials.json")
+            let loggedIn = envToken != nil || credentials != nil
+            io.stdout("{\"loggedIn\": \(loggedIn)}\n")
+            io.exit(loggedIn ? 0 : 1)
+        }
+    }
+
+    /// `rm -f <path>` for the authorize-log sweep.
+    nonisolated static func scriptFileRemoval(_ fake: FakeSpritesPlatform, sprite: String) async {
+        await fake.scriptExec(where: { $0.argv.first == "rm" }) { command, io in
+            if let path = command.argv.last {
+                await fake.removeFile(on: sprite, path: path)
+            }
             io.exit(0)
+        }
+    }
+
+    /// Marks a sprite logged in the way the setup-token flow leaves it: a
+    /// planted settings env token, observed through the auth-status probe.
+    nonisolated static func plantLoggedIn(_ fake: FakeSpritesPlatform, sprite: String) async {
+        await fake.setFile(
+            on: sprite, path: "/home/sprite/.claude/settings.json",
+            content: #"{"env": {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-PLANTED"}}"#)
+        await scriptAuthStatus(fake, sprite: sprite)
+    }
+
+    /// Answers the two native prompts (sign-in URL, minted token) the way
+    /// a user completing the dialogue would.
+    private func happyResponder(_ run: FlowRun, code: String = "auth-code-42") -> Task<Void, Never> {
+        Task {
+            while let prompt = await run.nextPrompt() {
+                switch prompt {
+                case .openURLAndEnterCode: run.respond(.text(code))
+                case .claudeMintedToken: run.respond(.acknowledged)
+                default:
+                    Issue.record("unexpected prompt \(String(describing: prompt))")
+                    run.respond(.declined)
+                }
+            }
         }
     }
 
     @Test func loginFlowCompletesAgainstScriptedTranscriptAndInstallsHooks() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        await Self.scriptHappyClaudeLogin(fake)
+        await fake.setFile(
+            on: "morning-cherry-1234", path: "/tmp/xdg-open.log",
+            content: "FOUND_URL: https://claude.com/cai/oauth/authorize?...")
+        await Self.scriptHappySetupToken(fake)
 
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
 
-        // Answer the native step UI (open-URL button, code paste field)
-        // as the user would.
+        // Answer the native step UI as the user would, checking each screen.
         let responder = Task {
             let prompt = await run.nextPrompt()
             guard case .openURLAndEnterCode(let url, _) = prompt else {
@@ -61,17 +110,27 @@ struct ClaudeCodeLoginFlowTests {
             }
             #expect(url.absoluteString == Self.oauthURL)
             run.respond(.text("auth-code-42"))
+            let tokenPrompt = await run.nextPrompt()
+            guard case .claudeMintedToken(let token) = tokenPrompt else {
+                Issue.record("expected claudeMintedToken, got \(String(describing: tokenPrompt))")
+                return
+            }
+            #expect(token == Self.mintedToken)
+            run.respond(.acknowledged)
         }
         await run.start()
         await responder.value
 
         #expect(run.phase == .succeeded)
 
-        // Heartbeat hooks were installed into user-level Claude settings.
+        // The token was planted into the settings env block, alongside the
+        // heartbeat hooks; no legacy credential file appears.
         let settings = try #require(await fake.fileContents(
             on: "morning-cherry-1234", path: "/home/sprite/.claude/settings.json"))
         let json = try #require(
             try JSONSerialization.jsonObject(with: Data(settings.utf8)) as? [String: Any])
+        let env = try #require(json["env"] as? [String: Any])
+        #expect(env["CLAUDE_CODE_OAUTH_TOKEN"] as? String == Self.mintedToken)
         let hooks = try #require(json["hooks"] as? [String: Any])
         for event in ["UserPromptSubmit", "PostToolUse", "Stop"] {
             #expect(hooks[event] != nil, "missing \(event) hook")
@@ -80,6 +139,11 @@ struct ClaudeCodeLoginFlowTests {
         #expect(hooks["SubagentStop"] == nil)
         #expect(settings.contains("sprite-env curl"))
         #expect(settings.contains("claude-heartbeat"))
+        #expect(await fake.fileContents(
+            on: "morning-cherry-1234", path: "/home/sprite/.claude/.credentials.json") == nil)
+
+        // The authorize-URL residue was swept.
+        #expect(await fake.fileContents(on: "morning-cherry-1234", path: "/tmp/xdg-open.log") == nil)
 
         // And the detail screen now observes "logged in".
         let detail = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
@@ -102,7 +166,7 @@ struct ClaudeCodeLoginFlowTests {
                     "PostToolUse": [{"hooks": [{"type": "command", "command": "\(envCheck.replacing("\"", with: "\\\""))"}]}]
                 }}
                 """)
-        await Self.scriptHappyClaudeLogin(fake)
+        await Self.scriptHappySetupToken(fake)
 
         func hookGroups() async throws -> [String: [[String: Any]]] {
             let settings = try #require(await fake.fileContents(
@@ -121,11 +185,7 @@ struct ClaudeCodeLoginFlowTests {
             let run = FlowRun(
                 flow: Integrations.claudeCode.loginFlow(),
                 platform: fake, sprite: "morning-cherry-1234")
-            let responder = Task {
-                if await run.nextPrompt() != nil {
-                    run.respond(.text("auth-code-42"))
-                }
-            }
+            let responder = happyResponder(run)
             await run.start()
             await responder.value
             #expect(run.phase == .succeeded)
@@ -143,9 +203,9 @@ struct ClaudeCodeLoginFlowTests {
         }
     }
 
-    @Test func extractsTheOAuthURLFromTheLiveAuthLoginShape() throws {
-        // Structure captured live from `claude auth login --claudeai`: a
-        // bare URL after the "didn't open, visit:" wording.
+    @Test func extractsTheOAuthURLFromABareTextShape() throws {
+        // A bare URL after the "didn't open" wording, as `auth login` used
+        // to print it; the visible-text fallback still covers this shape.
         let wanted = "https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a"
             + "&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainference"
         let transcript = "\u{1b}]9999;browser-open;https://claude.com/cai/oauth/authorize?legacy\u{1b}\\"
@@ -171,16 +231,34 @@ struct ClaudeCodeLoginFlowTests {
         #expect(ClaudeOutputParser.extractSignInURL(from: transcript)?.absoluteString == wanted)
     }
 
+    @Test func extractsTheMintedTokenFromTheLiveTranscriptShape() throws {
+        // Structure captured live: masked paste echo, the success line, the
+        // marker line, then the token as visible text with ANSI noise.
+        let token = "sk-ant-oat01-JVG5k_fpvz6mOoATOBpZ8nLahF-UBm2ijMqFK7YavnnM2aOTIS2S7Hze"
+            + "QouPzM2AbFPZTwrP69jHM1fR7movPg-4UHTMwAA"
+        let transcript = "Paste code here if prompted > \r\n"
+            + "\u{1b}[?25l********************************\r\n"
+            + "\r\n\u{2713} Long-lived authentication token created successfully!\r\n"
+            + "\u{1b}[1mYour OAuth token (valid for 1 year):\u{1b}[22m\r\n"
+            + "\(token)\r\n"
+
+        #expect(ClaudeOutputParser.extractSetupToken(from: transcript) == token)
+        // Anchored: a transcript without the marker yields nothing, even
+        // with a token-shaped string in it.
+        #expect(ClaudeOutputParser.extractSetupToken(from: "Token: \(token)") == nil)
+    }
+
     @Test func rewordedPromptFailsVisiblyWithRawOutput() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
         // The CLI reworded its prompt; the anchored parser must not guess.
-        await fake.scriptExec(where: { $0.argv.contains("login") }) { _, io in
+        await fake.scriptExec(where: { $0.argv.contains("setup-token") }) { _, io in
             io.stdout("Please visit the following address to authenticate:\r\n")
             io.stdout("https://claude.ai/oauth/authorize?code=true\r\n")
             _ = await io.readLine()  // sits waiting, like the real CLI
             io.exit(0)
         }
+        await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(urlTimeout: .milliseconds(200)),
@@ -193,29 +271,60 @@ struct ClaudeCodeLoginFlowTests {
         #expect(run.transcript.contains("Please visit the following address"))
     }
 
+    /// The mirror anchor: the dialogue completed but the token print was
+    /// reworded, so no token can be captured. Fail visibly, never plant.
+    @Test func rewordedTokenPrintFailsVisibly() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        await fake.scriptExec(where: { $0.argv == ["claude", "setup-token"] }) { _, io in
+            io.stdout(
+                "Browser didn't open? Use the url below to sign in (c to copy)\r\n"
+                    + "\u{1b}]8;;\(Self.oauthURL)\u{1b}\\link\u{1b}]8;;\u{1b}\\\r\n"
+                    + " Paste code here if prompted > ")
+            guard await io.readLine() != nil else {
+                io.exit(1)
+                return
+            }
+            io.stdout("Here is your access key:\r\n\(Self.mintedToken)\r\n")
+            io.exit(0)
+        }
+        await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
+
+        let run = FlowRun(
+            flow: Integrations.claudeCode.loginFlow(),
+            platform: fake, sprite: "morning-cherry-1234")
+        let responder = happyResponder(run)
+        await run.start()
+        await responder.value
+
+        #expect(run.phase == .failed)
+        #expect(run.failureMessage?.contains("minted token") == true)
+        #expect(await fake.fileContents(
+            on: "morning-cherry-1234", path: "/home/sprite/.claude/settings.json") == nil)
+    }
+
     /// The observed iOS failure: suspension kills the WebSocket during the
     /// Safari/Mail hop. The PTY survives server-side; the step reattaches
     /// by identity, tolerates the scrollback replay, and completes.
     @Test func socketDropDuringTheHopReattachesAndCompletes() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        await fake.scriptExec(where: { $0.argv == ["claude", "auth", "login", "--claudeai"] && $0.tty }) { _, io in
+        await fake.scriptExec(where: { $0.argv == ["claude", "setup-token"] && $0.tty }) { _, io in
             io.stdout(
-                "If your browser didn't open, visit: \(Self.oauthURL)\r\n"
-                    + "Paste code here if prompted > ")
+                "Browser didn't open? Use the url below to sign in (c to copy)\r\n"
+                    + "\u{1b}]8;;\(Self.oauthURL)\u{1b}\\link\u{1b}]8;;\u{1b}\\\r\n"
+                    + " Paste code here if prompted > ")
             io.dropConnection()  // the app got suspended; the socket died
             guard let code = await io.readLine(), code == "auth-code-42" else {
                 io.exit(1)
                 return
             }
-            await fake.setFile(
-                on: "morning-cherry-1234",
-                path: "/home/sprite/.claude/.credentials.json",
-                content: #"{"claudeAiOauth":{"accessToken":"sk-ant-oat01-fake"}}"#)
-            io.stdout("Login successful.\r\n")
+            io.stdout(
+                "\r\nYour OAuth token (valid for 1 year):\r\n\(Self.mintedToken)\r\n")
             io.exit(0)
         }
         await Self.scriptAuthStatus(fake, sprite: "morning-cherry-1234")
+        await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(),
@@ -229,6 +338,9 @@ struct ClaudeCodeLoginFlowTests {
             let tasksDuring = (try? await fake.listTasks(on: "morning-cherry-1234")) ?? []
             #expect(tasksDuring.contains { $0.name == ClaudeCodeIntegration.loginKeepAliveTaskName })
             run.respond(.text("auth-code-42"))
+            if case .claudeMintedToken = await run.nextPrompt() {
+                run.respond(.acknowledged)
+            }
         }
         await run.start()
         await responder.value
@@ -247,13 +359,15 @@ struct ClaudeCodeLoginFlowTests {
     @Test func processDeathDuringTheHopFailsCleanly() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        await fake.scriptExec(where: { $0.argv.contains("login") }) { _, io in
+        await fake.scriptExec(where: { $0.argv.contains("setup-token") }) { _, io in
             io.stdout(
-                "If your browser didn't open, visit: \(Self.oauthURL)\r\n"
-                    + "Paste code here if prompted > ")
+                "Browser didn't open? Use the url below to sign in (c to copy)\r\n"
+                    + "\u{1b}]8;;\(Self.oauthURL)\u{1b}\\link\u{1b}]8;;\u{1b}\\\r\n"
+                    + " Paste code here if prompted > ")
             io.dropConnection()
             io.exit(1)  // died while the user was off in Mail
         }
+        await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(),
@@ -276,13 +390,15 @@ struct ClaudeCodeLoginFlowTests {
     @Test func decliningKillsTheLoginSession() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        await fake.scriptExec(where: { $0.argv.contains("login") }) { _, io in
+        await fake.scriptExec(where: { $0.argv.contains("setup-token") }) { _, io in
             io.stdout(
-                "If your browser didn't open, visit: \(Self.oauthURL)\r\n"
-                    + "Paste code here if prompted > ")
+                "Browser didn't open? Use the url below to sign in (c to copy)\r\n"
+                    + "\u{1b}]8;;\(Self.oauthURL)\u{1b}\\link\u{1b}]8;;\u{1b}\\\r\n"
+                    + " Paste code here if prompted > ")
             _ = await io.readLine()
             io.exit(1)
         }
+        await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(),
@@ -305,7 +421,7 @@ struct ClaudeCodeLoginFlowTests {
     @Test func flowStartSweepsStaleLoginSessions() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
-        await Self.scriptHappyClaudeLogin(fake)
+        await Self.scriptHappySetupToken(fake)
         // An innocent bystander session the sweep must not touch.
         await fake.scriptExec(where: { $0.argv.first == "sleep" }) { _, io in
             _ = await io.readLine()
@@ -315,7 +431,7 @@ struct ClaudeCodeLoginFlowTests {
         let zombie = try await fake.exec(
             on: "morning-cherry-1234",
             command: ExecCommand(
-                ["claude", "auth", "login", "--claudeai"], tty: true,
+                ["claude", "setup-token"], tty: true,
                 env: ["TERM": "xterm-256color"], rows: 40, cols: 120))
         let zombieID = await zombie.sessionID
         await zombie.cancel()  // abandoned: detached but alive
@@ -326,11 +442,7 @@ struct ClaudeCodeLoginFlowTests {
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
-        let responder = Task {
-            if await run.nextPrompt() != nil {
-                run.respond(.text("auth-code-42"))
-            }
-        }
+        let responder = happyResponder(run)
         await run.start()
         await responder.value
 
@@ -345,25 +457,24 @@ struct ClaudeCodeLoginFlowTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "morning-cherry-1234", status: .running)
         let attempts = Counter()
-        await fake.scriptExec(where: { $0.argv == ["claude", "auth", "login", "--claudeai"] }) { _, io in
+        await fake.scriptExec(where: { $0.argv == ["claude", "setup-token"] }) { _, io in
             if await attempts.increment() == 1 {
                 io.stdout("Error: could not reach anthropic.com\r\n")
                 io.exit(1)
             } else {
                 io.stdout(
-                    "If your browser didn't open, visit: "
+                    "Browser didn't open? Use the url below to sign in (c to copy)\r\n"
                         + "\u{1b}]8;;\(Self.oauthURL)\u{7}link\u{1b}]8;;\u{7}\r\n")
                 guard let _ = await io.readLine() else {
                     io.exit(1)
                     return
                 }
-                await fake.setFile(
-                    on: "morning-cherry-1234",
-                    path: "/home/sprite/.claude/.credentials.json", content: "{}")
+                io.stdout("Your OAuth token (valid for 1 year):\r\n\(Self.mintedToken)\r\n")
                 io.exit(0)
             }
         }
         await Self.scriptAuthStatus(fake, sprite: "morning-cherry-1234")
+        await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
             flow: Integrations.claudeCode.loginFlow(),
@@ -373,11 +484,7 @@ struct ClaudeCodeLoginFlowTests {
         #expect(run.phase == .failed)
         #expect(run.transcript.contains("could not reach anthropic.com"))
 
-        let responder = Task {
-            if await run.nextPrompt() != nil {
-                run.respond(.text("any-code"))
-            }
-        }
+        let responder = happyResponder(run, code: "any-code")
         await run.retry()
         await responder.value
 

@@ -60,8 +60,9 @@ struct CheckpointTests {
         await model.createCheckpoint(comment: "clean")
         let clean = try #require(model.checkpoints?.last)
 
-        // Later: an agent login and a service exist.
-        await fake.setFile(on: Self.sprite, path: "/home/sprite/.claude/.credentials.json", content: "{}")
+        // Later: an agent login and a service exist. The login marker is
+        // the planted settings token, which the checkpoint captures.
+        await ClaudeCodeLoginFlowTests.plantLoggedIn(fake, sprite: Self.sprite)
         await fake.setService(
             on: Self.sprite,
             Service(name: "t3", cmd: "/home/sprite/.local/bin/t3", args: ["serve"]))

@@ -9,17 +9,38 @@ extension ClaudeCodeIntegration {
     /// dialogue, so it cannot decay toward cold during the Safari/Mail hop.
     public static let loginKeepAliveTaskName = "claude-code-login"
 
-    /// Log in the Claude subscription on the sprite with native UI, then
-    /// install the Heartbeat hooks. Never shows a terminal (ADR 0002).
+    /// Log in Claude Code on the sprite by minting a setup-token with
+    /// native UI, then install the Heartbeat hooks. Never shows a terminal
+    /// (ADR 0002).
     public func loginFlow(urlTimeout: Duration = .seconds(180)) -> Flow {
         Flow(
             id: "claude-code-login",
             title: "Log in Claude Code",
             steps: [
-                ClaudeAuthLoginStep(urlTimeout: urlTimeout),
+                ClaudeSetupTokenStep(urlTimeout: urlTimeout),
                 InstallHeartbeatHooksStep(),
             ]
         )
+    }
+
+    /// Merges the token into the env block of user-level Claude settings,
+    /// which the CLI reads on every start. T3 drives Claude through the
+    /// agent SDK with a pass-through environment by default, so this also
+    /// authenticates T3-driven Claude; a custom Claude homePath configured
+    /// in T3 sets CLAUDE_CONFIG_DIR and would bypass this file.
+    static func plantToken(_ token: String, on sprite: String, platform: SpritesPlatform)
+        async throws
+    {
+        let existing = try await platform.readFile(on: sprite, path: settingsPath) ?? "{}"
+        var settings = (try? JSONSerialization.jsonObject(with: Data(existing.utf8)))
+            as? [String: Any] ?? [:]
+        var env = settings["env"] as? [String: Any] ?? [:]
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+        settings["env"] = env
+        let data = try JSONSerialization.data(
+            withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
+        try await platform.writeFile(
+            on: sprite, path: settingsPath, content: String(decoding: data, as: UTF8.self))
     }
 }
 
@@ -53,6 +74,19 @@ public enum ClaudeOutputParser {
         return nil
     }
 
+    /// setup-token prints the minted token under this line (observed live:
+    /// "Your OAuth token (valid for 1 year):"). Anchored like the URL
+    /// marker: a reworded CLI must fail visibly, not silently.
+    public static let mintedTokenMarker = "Your OAuth token"
+
+    public static func extractSetupToken(from raw: String) -> String? {
+        let visible = stripANSI(raw)
+        guard let marker = visible.range(of: mintedTokenMarker) else { return nil }
+        guard let match = visible[marker.upperBound...].firstMatch(of: /sk-ant-oat01-[A-Za-z0-9_-]+/)
+        else { return nil }
+        return String(match.0)
+    }
+
     public static func stripANSI(_ text: String) -> String {
         text
             .replacing(/\u{1b}\][^\u{07}\u{1b}]*(\u{07}|\u{1b}\\)/, with: "")  // OSC
@@ -61,24 +95,25 @@ public enum ClaudeOutputParser {
     }
 }
 
-/// Drives `claude auth login` in a headless PTY: extract the OAuth URL,
-/// show native step UI, send the pasted code back over the socket, verify.
-/// Unlike `setup-token` (which only prints a CI token and saves nothing),
-/// `auth login` persists refreshable credentials to the documented store
-/// (`~/.claude/.credentials.json` on Linux).
+/// Drives `claude setup-token` in a headless PTY: extract the OAuth URL,
+/// show native step UI, send the pasted code back over the socket, then
+/// parse the minted `sk-ant-oat01-` token out of the output and plant it
+/// into the settings env block. setup-token persists nothing on the sprite
+/// itself (observed live), so the token exists only in the PTY output, and
+/// the plant is what logs the sprite in.
 ///
 /// iOS may suspend the app and kill the WebSocket during the Safari/Mail
 /// hop; the PTY survives server-side (observed live), so the step lazily
 /// reattaches by identity only when the socket actually died.
-struct ClaudeAuthLoginStep: FlowStep {
-    let id = "claude-auth-login"
+struct ClaudeSetupTokenStep: FlowStep {
+    let id = "claude-setup-token"
     let title = "Log in to Claude"
     let urlTimeout: Duration
 
-    static let loginArgv = ["claude", "auth", "login", "--claudeai"]
+    static let mintArgv = ["claude", "setup-token"]
     /// The session list reports resolved path + args (observed live), so
     /// stale-login matching is by this suffix, never argv[0].
-    static var loginCommandSuffix: String { loginArgv.joined(separator: " ") }
+    static var mintCommandSuffix: String { mintArgv.joined(separator: " ") }
 
     func run(in context: FlowContext) async throws {
         try await context.platform.upsertTask(
@@ -87,29 +122,40 @@ struct ClaudeAuthLoginStep: FlowStep {
         do {
             try await runDialogue(in: context)
         } catch {
+            await sweepAuthorizeLog(in: context)
             try? await context.platform.deleteTask(
                 on: context.sprite, named: ClaudeCodeIntegration.loginKeepAliveTaskName)
             throw error
         }
+        await sweepAuthorizeLog(in: context)
         try? await context.platform.deleteTask(
             on: context.sprite, named: ClaudeCodeIntegration.loginKeepAliveTaskName)
+    }
+
+    /// The CLI's browser-open attempt leaves the full authorize URL in a
+    /// world-readable tmp file, which Checkpoints would capture.
+    /// Best-effort, on success and failure paths both.
+    private func sweepAuthorizeLog(in context: FlowContext) async {
+        _ = try? await context.platform.runCapturing(
+            on: context.sprite, ["rm", "-f", ClaudeCodeIntegration.xdgOpenLogPath])
     }
 
     private func runDialogue(in context: FlowContext) async throws {
         // Sweep zombies: an abandoned login PTY outlives its socket forever.
         // Best-effort, and surgical by command suffix.
         if let sessions = try? await context.platform.listExecSessions(on: context.sprite) {
-            for stale in sessions where stale.command.hasSuffix(Self.loginCommandSuffix) {
+            for stale in sessions where stale.command.hasSuffix(Self.mintCommandSuffix) {
                 try? await context.platform.killExecSession(on: context.sprite, sessionID: stale.id)
             }
         }
 
         // Observed live: the sprite PTY starts with TERM unset and a 0x0
-        // size, and claude silently waits forever without them.
+        // size, and claude silently waits forever without them. 120 cols
+        // also keeps the printed token on one unwrapped line.
         let session = try await context.platform.exec(
             on: context.sprite,
             command: ExecCommand(
-                Self.loginArgv, tty: true,
+                Self.mintArgv, tty: true,
                 env: ["TERM": "xterm-256color"], rows: 40, cols: 120))
         let sessionID = await session.sessionID
         do {
@@ -153,7 +199,7 @@ struct ClaudeAuthLoginStep: FlowStep {
                 seen += text
                 context.output(text)
             case .exit(let code):
-                throw FlowError.failed("claude auth login exited early with status \(code)")
+                throw FlowError.failed("claude setup-token exited early with status \(code)")
             }
             url = ClaudeOutputParser.extractSignInURL(from: seen)
         }
@@ -172,7 +218,10 @@ struct ClaudeAuthLoginStep: FlowStep {
         }
 
         // Phase 3: submit the code on the held socket; reattach by identity
-        // only if it died (ended without an exit: the drop signature).
+        // only if it died (ended without an exit: the drop signature). All
+        // output keeps accumulating into `seen`: the minted token arrives
+        // here, and a reattach's scrollback replay preserves it as visible
+        // text (unlike the OSC-8 sign-in URL).
         var active = session
         var activeReader = reader
         var submitted = false
@@ -190,7 +239,7 @@ struct ClaudeAuthLoginStep: FlowStep {
                         on: context.sprite, sessionID: sessionID)
                 } catch {
                     // The process ended while the user was away. If a code
-                    // already went in, verification below is the arbiter.
+                    // already went in, the token parse below is the arbiter.
                     if submitted { break submission }
                     throw FlowError.failed(
                         "The sign-in session ended while you were away. Retry to start over.")
@@ -214,7 +263,9 @@ struct ClaudeAuthLoginStep: FlowStep {
                 }
                 switch event {
                 case .stdout(let data), .stderr(let data):
-                    context.output(String(decoding: data, as: UTF8.self))
+                    let text = String(decoding: data, as: UTF8.self)
+                    seen += text
+                    context.output(text)
                 case .exit(let code):
                     exitCode = code
                 }
@@ -228,33 +279,28 @@ struct ClaudeAuthLoginStep: FlowStep {
                     + "Retry to start over.")
         }
         if let exitCode, exitCode != 0 {
-            throw FlowError.failed("claude auth login exited with status \(exitCode)")
+            throw FlowError.failed("claude setup-token exited with status \(exitCode)")
         }
 
-        // Verify the login actually landed: claude's own status probe, plus
-        // the documented credential store the detail screen observes. With
-        // no observed exit, this is the arbiter.
-        let status = try await context.platform.runCapturing(
-            on: context.sprite, ["claude", "auth", "status", "--json"])
-        context.output(status.stdoutText)
-        let loggedIn = (try? JSONSerialization.jsonObject(with: status.stdout))
-            .flatMap { $0 as? [String: Any] }
-            .flatMap { $0["loggedIn"] as? Bool } ?? false
-        guard loggedIn else {
+        // The captured token is the arbiter: setup-token persists nothing
+        // on the sprite, so missing it means re-running the whole dialogue.
+        guard let token = ClaudeOutputParser.extractSetupToken(from: seen) else {
             if exitCode == nil {
                 throw FlowError.failed(
-                    "The sign-in session ended while you were away and no login was recorded. "
+                    "The sign-in session ended while you were away and no token was captured. "
                         + "Retry to start over.")
             }
-            throw FlowError.failed("claude auth status does not report a login after the dialogue.")
-        }
-        guard try await context.platform.fileExists(
-            on: context.sprite, path: ClaudeCodeIntegration.credentialsPath)
-        else {
             throw FlowError.failed(
-                "Logged in, but no credentials at \(ClaudeCodeIntegration.credentialsPath); "
-                    + "the detail screen would not observe this login.")
+                "Could not find the minted token in claude's output. The CLI may have changed "
+                    + "its prompts.")
         }
+
+        guard await context.prompt(.claudeMintedToken(token: token)) != .declined else {
+            throw FlowError.declined
+        }
+        try await ClaudeCodeIntegration.plantToken(
+            token, on: context.sprite, platform: context.platform)
+        context.output("Planted the token into \(ClaudeCodeIntegration.settingsPath)\n")
     }
 }
 

@@ -10,8 +10,7 @@ struct T3SetupFlowTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: Self.sprite, status: .running)
         if claudeLoggedIn {
-            await fake.setFile(
-                on: Self.sprite, path: "/home/sprite/.claude/.credentials.json", content: "{}")
+            await ClaudeCodeLoginFlowTests.plantLoggedIn(fake, sprite: Self.sprite)
         }
         return fake
     }

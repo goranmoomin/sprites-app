@@ -164,6 +164,12 @@ struct FlowPromptView: View {
             PairingSectionView(pairing: pairing, requestNewCode: { respond(.reissue) }) {
                 respond(.acknowledged)
             }
+        case .claudeMintedToken(let token):
+            Section("Claude token") {
+                Text("Claude minted a login token for this Sprite.")
+                CopyableValueRow(label: "Token", value: token, monospaced: true)
+                Button("Continue") { respond(.acknowledged) }
+            }
         }
     }
 }

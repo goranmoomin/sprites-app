@@ -84,15 +84,16 @@ struct IntegrationRecognitionTests {
         #expect(model.services?.allSatisfy { !model.isCustom($0) } == true)
     }
 
-    @Test func claudeCodeStatusLineObservesCredentialPresence() async throws {
+    @Test func claudeCodeStatusLineFollowsTheCLIsAuthProbe() async throws {
         let fake = await makeFake()
+        await ClaudeCodeLoginFlowTests.scriptAuthStatus(fake, sprite: "morning-cherry-1234")
         let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
 
         await model.refresh()
         #expect(model.integrationLines?.first { $0.title == "Claude Code" }?.summary == "not logged in")
 
-        await fake.setFile(on: "morning-cherry-1234", path: "/home/sprite/.claude/.credentials.json",
-                           content: "{\"claudeAiOauth\":{}}")
+        await fake.setFile(on: "morning-cherry-1234", path: "/home/sprite/.claude/settings.json",
+                           content: #"{"env": {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-PLANTED"}}"#)
         await model.refresh()
         #expect(model.integrationLines?.first { $0.title == "Claude Code" }?.summary == "logged in")
     }

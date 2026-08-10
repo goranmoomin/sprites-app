@@ -54,6 +54,6 @@ public struct ClaudeCodeIntegration: Integration {
     }
 
     public func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow] {
-        status.isReady ? [] : [loginFlow()]
+        status.isReady ? [logoutFlow()] : [loginFlow()]
     }
 }

@@ -29,7 +29,7 @@ struct FlowOfferingTests {
         #expect(model.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup"])
     }
 
-    @Test func fullySetUpSpriteOffersOnlyPairAgain() async throws {
+    @Test func fullySetUpSpriteOffersLogoutAndPairAgain() async throws {
         let fake = await makeFake()
         await ClaudeCodeLoginFlowTests.plantLoggedIn(fake, sprite: Self.sprite)
         await fake.setService(on: Self.sprite, t3Service(status: .running))
@@ -37,7 +37,7 @@ struct FlowOfferingTests {
 
         await model.refresh()
 
-        #expect(model.offeredFlows?.map(\.id) == ["t3-pair-again"])
+        #expect(model.offeredFlows?.map(\.id) == ["claude-code-logout", "t3-pair-again"])
     }
 
     @Test func stoppedT3ServiceOffersPairAgainAndSetup() async throws {
@@ -48,7 +48,7 @@ struct FlowOfferingTests {
 
         await model.refresh()
 
-        #expect(model.offeredFlows?.map(\.id) == ["t3-pair-again", "t3-setup"])
+        #expect(model.offeredFlows?.map(\.id) == ["claude-code-logout", "t3-pair-again", "t3-setup"])
     }
 
     @Test func injectedFakeIntegrationsFlowsAppear() async throws {

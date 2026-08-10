@@ -87,6 +87,62 @@ struct ClaudeCodeLoginFlowTests {
         #expect(detail.integrationLines?.first { $0.title == "Claude Code" }?.summary == "logged in")
     }
 
+    /// The sprite base image ships settings.json with its own hooks on the
+    /// heartbeat events; the install must append, never clobber them, and
+    /// re-running must not stack duplicates.
+    @Test func hookInstallPreservesBaseImageHooksAndIsIdempotent() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: "morning-cherry-1234", status: .running)
+        let envCheck = "\"$HOME\"/.sprite-shared/hooks/sprite-env-check.sh"
+        await fake.setFile(
+            on: "morning-cherry-1234", path: "/home/sprite/.claude/settings.json",
+            content: """
+                {"hooks": {
+                    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "\(envCheck.replacing("\"", with: "\\\""))"}]}],
+                    "PostToolUse": [{"hooks": [{"type": "command", "command": "\(envCheck.replacing("\"", with: "\\\""))"}]}]
+                }}
+                """)
+        await Self.scriptHappyClaudeLogin(fake)
+
+        func hookGroups() async throws -> [String: [[String: Any]]] {
+            let settings = try #require(await fake.fileContents(
+                on: "morning-cherry-1234", path: "/home/sprite/.claude/settings.json"))
+            let json = try #require(
+                try JSONSerialization.jsonObject(with: Data(settings.utf8)) as? [String: Any])
+            return try #require(json["hooks"] as? [String: [[String: Any]]])
+        }
+        func commands(in groups: [[String: Any]]) -> [String] {
+            groups.flatMap { group in
+                ((group["hooks"] as? [[String: Any]]) ?? []).compactMap { $0["command"] as? String }
+            }
+        }
+
+        for attempt in 1...2 {
+            let run = FlowRun(
+                flow: Integrations.claudeCode.loginFlow(),
+                platform: fake, sprite: "morning-cherry-1234")
+            let responder = Task {
+                if await run.nextPrompt() != nil {
+                    run.respond(.text("auth-code-42"))
+                }
+            }
+            await run.start()
+            await responder.value
+            #expect(run.phase == .succeeded)
+
+            let hooks = try await hookGroups()
+            for event in ["UserPromptSubmit", "PostToolUse"] {
+                let found = commands(in: try #require(hooks[event]))
+                #expect(found.contains(envCheck), "attempt \(attempt): base-image hook lost on \(event)")
+                #expect(
+                    found.filter { $0.contains("claude-heartbeat") }.count == 1,
+                    "attempt \(attempt): expected exactly one heartbeat hook on \(event), got \(found)")
+            }
+            let stop = commands(in: try #require(hooks["Stop"]))
+            #expect(stop.filter { $0.contains("claude-heartbeat") }.count == 1)
+        }
+    }
+
     @Test func extractsTheOAuthURLFromTheLiveAuthLoginShape() throws {
         // Structure captured live from `claude auth login --claudeai`: a
         // bare URL after the "didn't open, visit:" wording.

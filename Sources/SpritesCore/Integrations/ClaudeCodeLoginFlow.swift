@@ -279,15 +279,25 @@ struct InstallHeartbeatHooksStep: FlowStep {
             as? [String: Any] ?? [:]
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
 
-        func entry(_ command: String) -> [[String: Any]] {
-            [["hooks": [["type": "command", "command": command]]]]
+        // Append, never assign: the base image ships its own hooks on these
+        // events, and a login must not destroy them. Idempotent by matching
+        // our own command string, so re-running stacks no duplicates.
+        func install(_ command: String, on event: String) {
+            var groups = hooks[event] as? [[String: Any]] ?? []
+            let alreadyInstalled = groups.contains { group in
+                ((group["hooks"] as? [[String: Any]]) ?? [])
+                    .contains { $0["command"] as? String == command }
+            }
+            guard !alreadyInstalled else { return }
+            groups.append(["hooks": [["type": "command", "command": command]]])
+            hooks[event] = groups
         }
         // SubagentStop deliberately gets no release hook: a subagent can
         // finish while the parent turn keeps working, and releasing there
         // would drop the wake-hold mid-prompt.
-        hooks["UserPromptSubmit"] = entry(Self.refreshCommand)
-        hooks["PostToolUse"] = entry(Self.refreshCommand)
-        hooks["Stop"] = entry(Self.releaseCommand)
+        install(Self.refreshCommand, on: "UserPromptSubmit")
+        install(Self.refreshCommand, on: "PostToolUse")
+        install(Self.releaseCommand, on: "Stop")
         settings["hooks"] = hooks
 
         let data = try JSONSerialization.data(

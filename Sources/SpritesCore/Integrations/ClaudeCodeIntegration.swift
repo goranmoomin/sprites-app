@@ -19,7 +19,12 @@ public struct ClaudeCodeIntegration: Integration {
     /// (observed live); login Flows sweep it.
     public static let xdgOpenLogPath = "/tmp/xdg-open.log"
 
-    public init() {}
+    /// The app-side saved login the branching login Flow reuses.
+    public let loginStore: any ClaudeLoginStore
+
+    public init(loginStore: any ClaudeLoginStore = KeychainClaudeLoginStore()) {
+        self.loginStore = loginStore
+    }
 
     public func recognizes(_ service: Service) -> Bool {
         // Claude Code login is not a Service; nothing to recognize.

@@ -34,12 +34,16 @@ public final class CreateSpritePlaylist {
     private let sprite: String
     private var currentEntryID: String?
 
-    public init(platform: SpritesPlatform, sprite: String) {
+    public init(
+        platform: SpritesPlatform, sprite: String,
+        claudeCode: ClaudeCodeIntegration = Integrations.claudeCode,
+        t3Code: T3CodeIntegration = Integrations.t3Code
+    ) {
         self.platform = platform
         self.sprite = sprite
         self.entries = [
-            Entry(flow: Integrations.claudeCode.loginFlow(), integration: Integrations.claudeCode),
-            Entry(flow: Integrations.t3Code.setupFlow(), integration: Integrations.t3Code),
+            Entry(flow: claudeCode.loginFlow(), integration: claudeCode),
+            Entry(flow: t3Code.setupFlow(), integration: t3Code),
         ]
     }
 

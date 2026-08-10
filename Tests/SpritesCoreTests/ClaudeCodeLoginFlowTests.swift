@@ -73,6 +73,15 @@ struct ClaudeCodeLoginFlowTests {
         await scriptAuthStatus(fake, sprite: sprite)
     }
 
+    /// A login Flow backed by an in-memory store: tests must never read
+    /// (or worse, write) the developer's real Keychain slot.
+    nonisolated static func loginFlow(
+        store: any ClaudeLoginStore = InMemoryClaudeLoginStore(),
+        urlTimeout: Duration = .seconds(180)
+    ) -> Flow {
+        ClaudeCodeIntegration(loginStore: store).loginFlow(urlTimeout: urlTimeout)
+    }
+
     /// Answers the two native prompts (sign-in URL, minted token) the way
     /// a user completing the dialogue would.
     private func happyResponder(_ run: FlowRun, code: String = "auth-code-42") -> Task<Void, Never> {
@@ -98,7 +107,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptHappySetupToken(fake)
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
 
         // Answer the native step UI as the user would, checking each screen.
@@ -183,7 +192,7 @@ struct ClaudeCodeLoginFlowTests {
 
         for attempt in 1...2 {
             let run = FlowRun(
-                flow: Integrations.claudeCode.loginFlow(),
+                flow: Self.loginFlow(),
                 platform: fake, sprite: "morning-cherry-1234")
             let responder = happyResponder(run)
             await run.start()
@@ -261,7 +270,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(urlTimeout: .milliseconds(200)),
+            flow: Self.loginFlow(urlTimeout: .milliseconds(200)),
             platform: fake, sprite: "morning-cherry-1234")
         await run.start()
 
@@ -291,7 +300,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
         let responder = happyResponder(run)
         await run.start()
@@ -327,7 +336,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
         let responder = Task {
             guard await run.nextPrompt() != nil else {
@@ -370,7 +379,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
         let responder = Task {
             if await run.nextPrompt() != nil {
@@ -401,7 +410,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
         let responder = Task {
             if await run.nextPrompt() != nil {
@@ -440,7 +449,7 @@ struct ClaudeCodeLoginFlowTests {
         await bystander.cancel()
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
         let responder = happyResponder(run)
         await run.start()
@@ -477,7 +486,7 @@ struct ClaudeCodeLoginFlowTests {
         await Self.scriptFileRemoval(fake, sprite: "morning-cherry-1234")
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(),
+            flow: Self.loginFlow(),
             platform: fake, sprite: "morning-cherry-1234")
         await run.start()
 

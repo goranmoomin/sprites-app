@@ -34,7 +34,8 @@ struct InteractiveLoginTests {
         }
 
         let run = FlowRun(
-            flow: Integrations.claudeCode.loginFlow(urlTimeout: .seconds(120)),
+            flow: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore())
+                .loginFlow(urlTimeout: .seconds(120)),
             platform: platform, sprite: sprite)
 
         let responder = Task {
@@ -125,5 +126,52 @@ struct InteractiveLoginTests {
         note("### HEARTBEAT_SEEN \(sawHeartbeat)")
         let tasksAfter = (try? await platform.listTasks(on: sprite)) ?? []
         note("### HEARTBEAT_AFTER \(tasksAfter.contains { $0.name == "claude-heartbeat" })")
+    }
+
+    /// The fan-out claim live (claude-setup-token ticket 03): a saved
+    /// token plants on a second sprite with no dialogue, and inference
+    /// works there. Prime SPRITES_LIVE_CLAUDE_TOKEN with a real
+    /// setup-token (e.g. from the mint test's sprite).
+    @Test(
+        .enabled(if: ProcessInfo.processInfo.environment["SPRITES_LIVE_CLAUDE_TOKEN"] != nil),
+        .timeLimit(.minutes(10)))
+    func interactiveSavedLoginPlantsOnASecondSpriteWithoutADialogue() async throws {
+        let platform = HTTPSpritesPlatform(
+            token: ProcessInfo.processInfo.environment["SPRITES_LIVE_TOKEN"]!)
+        let environment = ProcessInfo.processInfo.environment
+        let sprite = environment["SPRITES_LIVE_SPRITE2"] ?? environment["SPRITES_LIVE_SPRITE"]! + "-2"
+
+        if !(try await platform.listSprites().contains { $0.name == sprite }) {
+            _ = try await platform.createSprite(named: sprite)
+            note("### CREATED sprite \(sprite)")
+        }
+
+        let store = InMemoryClaudeLoginStore(login: SavedClaudeLogin(
+            token: environment["SPRITES_LIVE_CLAUDE_TOKEN"]!, mintedAt: Date()))
+        let run = FlowRun(
+            flow: ClaudeCodeIntegration(loginStore: store).loginFlow(),
+            platform: platform, sprite: sprite)
+        let watcher = Task {
+            if let prompt = await run.nextPrompt() {
+                note("### UNEXPECTED PROMPT \(String(describing: prompt))")
+                run.respond(.declined)
+            }
+        }
+        await run.start()
+        watcher.cancel()
+
+        note("### REUSE_PHASE \(run.phase)")
+        #expect(run.phase == .succeeded)
+
+        let detail = SpriteDetailModel(platform: platform, sprite: sprite)
+        await detail.refresh()
+        for line in detail.integrationLines ?? [] {
+            note("### STATUS \(line.title): \(line.summary)")
+        }
+
+        let result = try await platform.runCapturing(
+            on: sprite, ["claude", "-p", "Reply with exactly: ok"])
+        note("### CLAUDE_P exit=\(result.exitCode) output=\(result.stdoutText.suffix(200).debugDescription)")
+        #expect(result.exitCode == 0)
     }
 }

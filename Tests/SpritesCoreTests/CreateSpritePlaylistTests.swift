@@ -44,7 +44,9 @@ struct CreateSpritePlaylistTests {
     @Test func fullHappyPathEndsOnAFullySetUpSprite() async throws {
         let fake = await makeCreatedSprite()
         await scriptHappyDialogues(fake)
-        let playlist = CreateSpritePlaylist(platform: fake, sprite: Self.sprite)
+        let playlist = CreateSpritePlaylist(
+            platform: fake, sprite: Self.sprite,
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
 
         while let entryID = playlist.nextPendingID {
             let run = try #require(await playlist.startEntry(entryID))
@@ -65,7 +67,9 @@ struct CreateSpritePlaylistTests {
 
     @Test func everyStepIsSkippableAndTheDetailScreenOffersWhatRemains() async throws {
         let fake = await makeCreatedSprite()
-        let playlist = CreateSpritePlaylist(platform: fake, sprite: Self.sprite)
+        let playlist = CreateSpritePlaylist(
+            platform: fake, sprite: Self.sprite,
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
 
         while let entryID = playlist.nextPendingID {
             playlist.skip(entryID)
@@ -86,7 +90,9 @@ struct CreateSpritePlaylistTests {
     @Test func interruptionMidPlaylistLeavesAConsistentObservableSprite() async throws {
         let fake = await makeCreatedSprite()
         await scriptHappyDialogues(fake)
-        let playlist = CreateSpritePlaylist(platform: fake, sprite: Self.sprite)
+        let playlist = CreateSpritePlaylist(
+            platform: fake, sprite: Self.sprite,
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
 
         // Run only the Claude login, then the app dies. No cleanup runs.
         let entryID = try #require(playlist.nextPendingID)
@@ -106,7 +112,9 @@ struct CreateSpritePlaylistTests {
 
     @Test func controlPlaneStepWithUnmetDependencyExplainsAndOffersPrerequisite() async throws {
         let fake = await makeCreatedSprite()
-        let playlist = CreateSpritePlaylist(platform: fake, sprite: Self.sprite)
+        let playlist = CreateSpritePlaylist(
+            platform: fake, sprite: Self.sprite,
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
 
         // Skip the Claude login, then try the T3 setup.
         playlist.skip(playlist.entries[0].id)
@@ -124,7 +132,9 @@ struct CreateSpritePlaylistTests {
 
     @Test func playlistReusesTheSameFlowsTheDetailScreenLaunches() async throws {
         let fake = await makeCreatedSprite()
-        let playlist = CreateSpritePlaylist(platform: fake, sprite: Self.sprite)
+        let playlist = CreateSpritePlaylist(
+            platform: fake, sprite: Self.sprite,
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
 
         #expect(playlist.entries.map(\.flow.id) == [
             Integrations.claudeCode.loginFlow().id,

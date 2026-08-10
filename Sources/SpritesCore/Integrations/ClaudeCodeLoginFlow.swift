@@ -9,15 +9,15 @@ extension ClaudeCodeIntegration {
     /// dialogue, so it cannot decay toward cold during the Safari/Mail hop.
     public static let loginKeepAliveTaskName = "claude-code-login"
 
-    /// Log in Claude Code on the sprite by minting a setup-token with
-    /// native UI, then install the Heartbeat hooks. Never shows a terminal
-    /// (ADR 0002).
+    /// Log in Claude Code on the sprite: reuse the saved login when one
+    /// exists, otherwise mint a setup-token with native UI; then install
+    /// the Heartbeat hooks. Never shows a terminal (ADR 0002).
     public func loginFlow(urlTimeout: Duration = .seconds(180)) -> Flow {
         Flow(
             id: "claude-code-login",
             title: "Log in Claude Code",
             steps: [
-                ClaudeSetupTokenStep(urlTimeout: urlTimeout),
+                ClaudeLoginStep(store: loginStore, urlTimeout: urlTimeout),
                 InstallHeartbeatHooksStep(),
             ]
         )
@@ -95,19 +95,23 @@ public enum ClaudeOutputParser {
     }
 }
 
-/// Drives `claude setup-token` in a headless PTY: extract the OAuth URL,
-/// show native step UI, send the pasted code back over the socket, then
-/// parse the minted `sk-ant-oat01-` token out of the output and plant it
-/// into the settings env block. setup-token persists nothing on the sprite
-/// itself (observed live), so the token exists only in the PTY output, and
-/// the plant is what logs the sprite in.
+/// The branching login: plants the saved token silently when one exists
+/// (no PTY, no browser); otherwise drives `claude setup-token` in a
+/// headless PTY: extract the OAuth URL, show native step UI, send the
+/// pasted code back over the socket, then parse the minted `sk-ant-oat01-`
+/// token out of the output, offer to save it, and plant it into the
+/// settings env block. setup-token persists nothing on the sprite itself
+/// (observed live), so the token exists only in the PTY output, and the
+/// plant is what logs the sprite in. One token fans out to any number of
+/// Sprites: it carries no refresh chain, so nothing rotates.
 ///
 /// iOS may suspend the app and kill the WebSocket during the Safari/Mail
 /// hop; the PTY survives server-side (observed live), so the step lazily
 /// reattaches by identity only when the socket actually died.
-struct ClaudeSetupTokenStep: FlowStep {
-    let id = "claude-setup-token"
+struct ClaudeLoginStep: FlowStep {
+    let id = "claude-login"
     let title = "Log in to Claude"
+    let store: any ClaudeLoginStore
     let urlTimeout: Duration
 
     static let mintArgv = ["claude", "setup-token"]
@@ -116,6 +120,21 @@ struct ClaudeSetupTokenStep: FlowStep {
     static var mintCommandSuffix: String { mintArgv.joined(separator: " ") }
 
     func run(in context: FlowContext) async throws {
+        if let saved = store.load() {
+            context.output(
+                "Using the saved Claude login (saved "
+                    + "\(saved.mintedAt.formatted(date: .abbreviated, time: .omitted)))\n")
+            try await ClaudeCodeIntegration.plantToken(
+                saved.token, on: context.sprite, platform: context.platform)
+            context.output("Planted the token into \(ClaudeCodeIntegration.settingsPath)\n")
+            return
+        }
+        try await mint(in: context)
+    }
+
+    /// The mint branch: the full browser dialogue, pinned awake by the
+    /// keep-alive task.
+    private func mint(in context: FlowContext) async throws {
         try await context.platform.upsertTask(
             on: context.sprite, named: ClaudeCodeIntegration.loginKeepAliveTaskName,
             expiringInSeconds: 15 * 60)
@@ -295,8 +314,17 @@ struct ClaudeSetupTokenStep: FlowStep {
                     + "its prompts.")
         }
 
-        guard await context.prompt(.claudeMintedToken(token: token)) != .declined else {
+        // The consent choice: save to the app for reuse on other Sprites,
+        // or use here only. Planted on this sprite either way; declining
+        // save just means the next sprite mints again.
+        switch await context.prompt(.claudeMintedToken(token: token)) {
+        case .declined:
             throw FlowError.declined
+        case .approved:
+            store.save(SavedClaudeLogin(token: token, mintedAt: Date()))
+            context.output("Saved the login for reuse on other Sprites\n")
+        default:
+            break
         }
         try await ClaudeCodeIntegration.plantToken(
             token, on: context.sprite, platform: context.platform)

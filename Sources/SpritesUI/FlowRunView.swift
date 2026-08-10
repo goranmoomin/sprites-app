@@ -166,9 +166,13 @@ struct FlowPromptView: View {
             }
         case .claudeMintedToken(let token):
             Section("Claude token") {
-                Text("Claude minted a login token for this Sprite.")
+                Text("Claude minted a login token. Save it to log in other Sprites with one tap, or use it on this Sprite only.")
                 CopyableValueRow(label: "Token", value: token, monospaced: true)
-                Button("Continue") { respond(.acknowledged) }
+                Text("The token is valid for about a year, stored in plain text on each Sprite that uses it, and captured by Checkpoints. The app cannot revoke it.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Save for other Sprites") { respond(.approved) }
+                Button("Use on this Sprite only") { respond(.acknowledged) }
             }
         }
     }

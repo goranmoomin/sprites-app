@@ -11,9 +11,19 @@ public struct SpriteListView: View {
     @State private var path: [String] = []
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(session: Session, platform: SpritesPlatform) {
+    /// The app-side saved Claude login, re-read wherever the list itself
+    /// refreshes (a login Flow may have saved one in the meantime).
+    private let loginStore: any ClaudeLoginStore
+    @State private var savedLogin: SavedClaudeLogin?
+    @State private var confirmingForget = false
+
+    public init(
+        session: Session, platform: SpritesPlatform,
+        loginStore: any ClaudeLoginStore = Integrations.claudeCode.loginStore
+    ) {
         self.session = session
         self.platform = platform
+        self.loginStore = loginStore
         _model = State(initialValue: SpriteListModel(platform: platform, session: session))
     }
 
@@ -91,14 +101,50 @@ public struct SpriteListView: View {
                     }
                     .accessibilityLabel("Create sprite")
                 }
+                ToolbarItem(placement: .secondaryAction) {
+                    // The app's one app-level surface: the saved Claude
+                    // login and its forget action.
+                    Menu {
+                        if let savedLogin {
+                            Section("Saved Claude login from "
+                                + savedLogin.mintedAt.formatted(date: .abbreviated, time: .omitted)) {
+                                Button("Forget saved login", role: .destructive) {
+                                    confirmingForget = true
+                                }
+                            }
+                        } else {
+                            Text("No saved Claude login")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .accessibilityLabel("App options")
+                }
             }
-            .task { await model.refresh() }
+            .confirmationDialog(
+                "Forget the saved Claude login?",
+                isPresented: $confirmingForget, titleVisibility: .visible
+            ) {
+                Button("Forget", role: .destructive) {
+                    loginStore.clear()
+                    savedLogin = nil
+                }
+            } message: {
+                Text("This removes the login from this app only. It does not revoke the "
+                    + "token, and Sprites already using it stay logged in.")
+            }
+            .task {
+                savedLogin = loginStore.load()
+                await model.refresh()
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    savedLogin = loginStore.load()
                     Task { await model.refreshOnFocus() }
                 }
             }
             .onChange(of: path) { old, new in
+                savedLogin = loginStore.load()
                 if new.count < old.count {
                     Task { await model.refreshOnFocus() }
                 }

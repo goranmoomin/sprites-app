@@ -72,12 +72,20 @@ struct InteractiveLoginTests {
             note("### CODE SHAPE \(code.count) chars, \(classes.filter(\.1).map(\.0).joined(separator: ","))")
             note("### CODE RECEIVED (\(code.count) chars); SUBMITTING")
             run.respond(.text(code))
-            // The minted-token screen: shape only, never the token itself.
-            if case .claudeMintedToken(let token) = await run.nextPrompt() {
-                note("### TOKEN CAPTURED (\(token.count) chars, prefix \(token.prefix(13)))")
-                run.respond(.acknowledged)
-            } else {
-                note("### NO TOKEN PROMPT")
+            // The rest of the dialogue: the minted-token screen (shape
+            // only, never the token itself) and the verify offer, taken.
+            while let prompt = await run.nextPrompt() {
+                switch prompt {
+                case .claudeMintedToken(let token):
+                    note("### TOKEN CAPTURED (\(token.count) chars, prefix \(token.prefix(13)))")
+                    run.respond(.acknowledged)
+                case .consent(let title, _, _):
+                    note("### CONSENT \(title); approving")
+                    run.respond(.approved)
+                default:
+                    note("### UNEXPECTED PROMPT \(String(describing: prompt))")
+                    run.respond(.declined)
+                }
             }
         }
         await run.start()
@@ -152,13 +160,19 @@ struct InteractiveLoginTests {
             flow: ClaudeCodeIntegration(loginStore: store).loginFlow(),
             platform: platform, sprite: sprite)
         let watcher = Task {
-            if let prompt = await run.nextPrompt() {
-                note("### UNEXPECTED PROMPT \(String(describing: prompt))")
-                run.respond(.declined)
+            while let prompt = await run.nextPrompt() {
+                switch prompt {
+                case .consent(let title, _, _):
+                    note("### CONSENT \(title); approving")
+                    run.respond(.approved)
+                default:
+                    note("### UNEXPECTED PROMPT \(String(describing: prompt))")
+                    run.respond(.declined)
+                }
             }
         }
         await run.start()
-        watcher.cancel()
+        await watcher.value
 
         note("### REUSE_PHASE \(run.phase)")
         #expect(run.phase == .succeeded)

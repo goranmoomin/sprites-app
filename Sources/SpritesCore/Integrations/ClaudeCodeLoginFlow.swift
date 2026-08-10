@@ -12,12 +12,15 @@ extension ClaudeCodeIntegration {
     /// Log in Claude Code on the sprite: reuse the saved login when one
     /// exists, otherwise mint a setup-token with native UI; then install
     /// the Heartbeat hooks. Never shows a terminal (ADR 0002).
-    public func loginFlow(urlTimeout: Duration = .seconds(180)) -> Flow {
+    public func loginFlow(
+        urlTimeout: Duration = .seconds(180), verifyTimeout: Duration = .seconds(120)
+    ) -> Flow {
         Flow(
             id: "claude-code-login",
             title: "Log in Claude Code",
             steps: [
-                ClaudeLoginStep(store: loginStore, urlTimeout: urlTimeout),
+                ClaudeLoginStep(
+                    store: loginStore, urlTimeout: urlTimeout, verifyTimeout: verifyTimeout),
                 InstallHeartbeatHooksStep(),
             ]
         )
@@ -113,11 +116,13 @@ struct ClaudeLoginStep: FlowStep {
     let title = "Log in to Claude"
     let store: any ClaudeLoginStore
     let urlTimeout: Duration
+    let verifyTimeout: Duration
 
     static let mintArgv = ["claude", "setup-token"]
     /// The session list reports resolved path + args (observed live), so
     /// stale-login matching is by this suffix, never argv[0].
     static var mintCommandSuffix: String { mintArgv.joined(separator: " ") }
+    static let probeArgv = ["claude", "-p", "Reply with exactly: ok"]
 
     func run(in context: FlowContext) async throws {
         if let saved = store.load() {
@@ -127,9 +132,58 @@ struct ClaudeLoginStep: FlowStep {
             try await ClaudeCodeIntegration.plantToken(
                 saved.token, on: context.sprite, platform: context.platform)
             context.output("Planted the token into \(ClaudeCodeIntegration.settingsPath)\n")
+            // A failed probe means the saved token is dead (revoked or a
+            // year old): forget it and fall through to a fresh mint in
+            // place, so recovery never leaves the screen.
+            if try await verifyIfWanted(in: context) == false {
+                store.clear()
+                context.output(
+                    "The saved Claude login no longer works; it has been forgotten. "
+                        + "Sign in again to mint a new one.\n")
+                try await mint(in: context)
+            }
             return
         }
         try await mint(in: context)
+    }
+
+    /// The skippable verify: a real inference probe is the only honest
+    /// check (`auth status` reports logged in for any planted string).
+    /// Returns nil when skipped, false when the token failed the probe. A
+    /// hung probe is an infrastructure problem, not a dead credential, so
+    /// it fails the step without touching the planted login.
+    private func verifyIfWanted(in context: FlowContext) async throws -> Bool? {
+        let wanted = await context.prompt(.consent(
+            title: "Verify the login?",
+            message: "Runs a tiny claude prompt on the Sprite to prove the token works. "
+                + "This uses a sliver of your subscription.",
+            approveTitle: "Verify"))
+        guard wanted == .approved else { return nil }
+
+        let probed = try await withThrowingTaskGroup(of: ExecResult?.self) { group in
+            group.addTask {
+                try await context.platform.runCapturing(on: context.sprite, Self.probeArgv)
+            }
+            group.addTask {
+                try await Task.sleep(for: verifyTimeout)
+                return nil
+            }
+            let first = try await group.next()!
+            group.cancelAll()
+            return first
+        }
+        guard let result = probed else {
+            throw FlowError.failed(
+                "The verification probe timed out. The login stays planted; retry to verify again.")
+        }
+        context.output(result.stdoutText + result.stderrText)
+        guard result.exitCode == 0 else { return false }
+        _ = await context.prompt(.consent(
+            title: "Login verified",
+            message: "claude replied: "
+                + result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines),
+            approveTitle: "Continue"))
+        return true
     }
 
     /// The mint branch: the full browser dialogue, pinned awake by the
@@ -329,6 +383,14 @@ struct ClaudeLoginStep: FlowStep {
         try await ClaudeCodeIntegration.plantToken(
             token, on: context.sprite, platform: context.platform)
         context.output("Planted the token into \(ClaudeCodeIntegration.settingsPath)\n")
+
+        // Mint-branch verify failure only reports: a token straight off
+        // the mint failing the probe is an entitlement problem, not a
+        // stale-credential one, so nothing is forgotten.
+        if try await verifyIfWanted(in: context) == false {
+            throw FlowError.failed(
+                "The minted token failed the verification probe. Retry to mint again.")
+        }
     }
 }
 

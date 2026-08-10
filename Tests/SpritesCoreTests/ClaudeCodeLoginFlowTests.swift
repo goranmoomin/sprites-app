@@ -33,6 +33,21 @@ struct ClaudeCodeLoginFlowTests {
         }
         await scriptAuthStatus(fake, sprite: sprite)
         await scriptFileRemoval(fake, sprite: sprite)
+        await scriptInferenceProbe(fake, ok: true)
+    }
+
+    /// `claude -p`, the verification probe: replies ok or fails like a
+    /// dead token would.
+    nonisolated static func scriptInferenceProbe(_ fake: FakeSpritesPlatform, ok: Bool) async {
+        await fake.scriptExec(where: { $0.argv.first == "claude" && $0.argv.contains("-p") }) { _, io in
+            if ok {
+                io.stdout("ok\n")
+                io.exit(0)
+            } else {
+                io.stderr("Invalid API key or token\n")
+                io.exit(1)
+            }
+        }
     }
 
     /// `claude auth status --json` answers like the real CLI: from the
@@ -77,19 +92,22 @@ struct ClaudeCodeLoginFlowTests {
     /// (or worse, write) the developer's real Keychain slot.
     nonisolated static func loginFlow(
         store: any ClaudeLoginStore = InMemoryClaudeLoginStore(),
-        urlTimeout: Duration = .seconds(180)
+        urlTimeout: Duration = .seconds(180),
+        verifyTimeout: Duration = .seconds(120)
     ) -> Flow {
-        ClaudeCodeIntegration(loginStore: store).loginFlow(urlTimeout: urlTimeout)
+        ClaudeCodeIntegration(loginStore: store)
+            .loginFlow(urlTimeout: urlTimeout, verifyTimeout: verifyTimeout)
     }
 
-    /// Answers the two native prompts (sign-in URL, minted token) the way
-    /// a user completing the dialogue would.
+    /// Answers the native prompts (sign-in URL, minted token, skipping the
+    /// verify offer) the way a user completing the dialogue would.
     private func happyResponder(_ run: FlowRun, code: String = "auth-code-42") -> Task<Void, Never> {
         Task {
             while let prompt = await run.nextPrompt() {
                 switch prompt {
                 case .openURLAndEnterCode: run.respond(.text(code))
                 case .claudeMintedToken: run.respond(.acknowledged)
+                case .consent: run.respond(.declined)  // skip the verify offer
                 default:
                     Issue.record("unexpected prompt \(String(describing: prompt))")
                     run.respond(.declined)
@@ -126,6 +144,14 @@ struct ClaudeCodeLoginFlowTests {
             }
             #expect(token == Self.mintedToken)
             run.respond(.acknowledged)
+            // The skippable verify offer: skipping still completes the flow.
+            let verifyPrompt = await run.nextPrompt()
+            guard case .consent(let title, _, _) = verifyPrompt else {
+                Issue.record("expected the verify consent, got \(String(describing: verifyPrompt))")
+                return
+            }
+            #expect(title.contains("Verify"))
+            run.respond(.declined)
         }
         await run.start()
         await responder.value
@@ -349,6 +375,9 @@ struct ClaudeCodeLoginFlowTests {
             run.respond(.text("auth-code-42"))
             if case .claudeMintedToken = await run.nextPrompt() {
                 run.respond(.acknowledged)
+            }
+            if case .consent = await run.nextPrompt() {
+                run.respond(.declined)  // skip the verify offer
             }
         }
         await run.start()

@@ -10,7 +10,7 @@ struct ClaudeLoginReuseTests {
     nonisolated static let savedToken =
         "sk-ant-oat01-SAVEDSAVED-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    @Test func savedLoginPlantsSilentlyWithoutAnyDialogue() async throws {
+    @Test func savedLoginPlantsWithoutAnyBrowserDialogue() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "second-sprite-5678", status: .running)
         await ClaudeCodeLoginFlowTests.scriptAuthStatus(fake, sprite: "second-sprite-5678")
@@ -20,10 +20,15 @@ struct ClaudeLoginReuseTests {
         let run = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
             platform: fake, sprite: "second-sprite-5678")
+        // The only prompt the plant branch may show is the verify offer.
         let watcher = Task {
-            if let prompt = await run.nextPrompt() {
-                Issue.record("the plant branch prompted: \(String(describing: prompt))")
-                run.respond(.declined)
+            while let prompt = await run.nextPrompt() {
+                guard case .consent(let title, _, _) = prompt, title.contains("Verify") else {
+                    Issue.record("the plant branch prompted: \(String(describing: prompt))")
+                    run.respond(.declined)
+                    continue
+                }
+                run.respond(.declined)  // skip the verify offer
             }
         }
         await run.start()
@@ -61,6 +66,7 @@ struct ClaudeLoginReuseTests {
                 switch prompt {
                 case .openURLAndEnterCode: mint.respond(.text("auth-code-42"))
                 case .claudeMintedToken: mint.respond(.approved)  // save for other Sprites
+                case .consent: mint.respond(.declined)  // skip the verify offer
                 default:
                     Issue.record("unexpected prompt \(String(describing: prompt))")
                     mint.respond(.declined)
@@ -79,9 +85,13 @@ struct ClaudeLoginReuseTests {
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
             platform: fake, sprite: "second-sprite-5678")
         let watcher = Task {
-            if await reuse.nextPrompt() != nil {
-                Issue.record("reuse prompted")
-                reuse.respond(.declined)
+            while let prompt = await reuse.nextPrompt() {
+                guard case .consent = prompt else {
+                    Issue.record("reuse prompted: \(String(describing: prompt))")
+                    reuse.respond(.declined)
+                    continue
+                }
+                reuse.respond(.declined)  // skip the verify offer
             }
         }
         await reuse.start()
@@ -108,6 +118,7 @@ struct ClaudeLoginReuseTests {
                 switch prompt {
                 case .openURLAndEnterCode: mint.respond(.text("auth-code-42"))
                 case .claudeMintedToken: mint.respond(.acknowledged)  // this Sprite only
+                case .consent: mint.respond(.declined)  // skip the verify offer
                 default:
                     Issue.record("unexpected prompt \(String(describing: prompt))")
                     mint.respond(.declined)

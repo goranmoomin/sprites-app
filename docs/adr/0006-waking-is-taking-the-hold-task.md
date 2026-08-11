@@ -1,0 +1,3 @@
+# Waking is taking the hold task; no wake primitive, no sticky consent
+
+The platform has no wake endpoint (any deep call wakes), so the app has no `wake()` either: "Wake to inspect" upserts the app's single hold task for 5 minutes and "Keep active" upserts the same task for 1 hour, the probe-verified platform max. A separate wake task and the `hasWokenForInspection` consent flag were both rejected; deep observation gates purely on observed `running`. Consequence accepted by design: ambient events (focus, pull-to-refresh) never wake a Sprite, so once the hold lapses the screen degrades to the wake button instead of silently spending money.

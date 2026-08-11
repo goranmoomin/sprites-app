@@ -1,0 +1,5 @@
+# Exec sessions outlive their sockets; the app owns the lifecycle and re-attaches lazily
+
+A TTY exec session survives socket disconnect indefinitely, so closing a connection orphans a live process rather than ending it. The platform seam therefore exposes session identity, attach, list, and kill, and interactive Flow steps handle drops lazily: keep using the socket already held, and only on a failed send or a stream that ended without an exit, attach by ID once and resubmit. Every phase tolerates scrollback replay (the replay is a rendered snapshot; OSC-8 links are stripped, so URLs must be captured live), a sweep at Flow start kills stale sessions matched by argv suffix, and every non-natural exit kills the session instead of just dropping the socket.
+
+Eager detach-and-reattach and tmux/`setsid` self-managed persistence were rejected. Session IDs are process PIDs, valid only within the Flow that captured them, so cross-launch resume stays out of scope. Because a detached session does not keep the Sprite running, the login Flow holds a step-scoped 15-minute task as a dead-man's switch for the browser hop.

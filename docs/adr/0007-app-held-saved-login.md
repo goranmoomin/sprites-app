@@ -1,0 +1,5 @@
+# The Saved login is app-durable; forgetting is not revoking
+
+ADR 0001 keeps Sprite state observed-only, but the Claude Code Saved login (setup-token plus mint date) deliberately lives in a local Keychain item: it is an app-side credential, not remembered Sprite state, and login status is still re-observed per visit. iCloud sync and multiple named logins were rejected to keep the blast radius of a year-long, unrevocable-from-the-app token small.
+
+Consequences accepted with eyes open: the app plants a credential it cannot revoke, forgetting removes it from the app only, and a Checkpoint restore can resurrect a planted token (hence the sprite-side "Log out Claude Code"). "Logged in" reports `claude auth status` verbatim without validating the token; truth is available only through the skippable verify probe, which on failure forgets the dead login and falls through to a fresh mint. The interactive full-scope `claude auth login` was removed with this change, so Claude Remote Control is unsupported until it returns.

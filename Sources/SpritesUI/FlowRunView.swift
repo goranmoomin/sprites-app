@@ -163,6 +163,16 @@ struct FlowPromptView: View {
                 Button(approveTitle) { respond(.approved) }
                 Button("Not now", role: .cancel) { respond(.declined) }
             }
+        case .openURLAndShowCode(let url, let code, let instructions):
+            Section("Sign in") {
+                Text(instructions)
+                CopyableValueRow(label: "Code", value: code, monospaced: true)
+                Link(destination: url) {
+                    Label("Open sign-in page", systemImage: "safari")
+                }
+                Button("I have entered the code") { respond(.acknowledged) }
+                Button("Cancel", role: .cancel) { respond(.declined) }
+            }
         case .t3Pairing(let pairing):
             PairingSectionView(pairing: pairing, requestNewCode: { respond(.reissue) }) {
                 respond(.acknowledged)

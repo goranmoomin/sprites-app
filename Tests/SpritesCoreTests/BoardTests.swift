@@ -19,6 +19,7 @@ struct BoardTests {
 
     private func scriptHappyDialogues(_ fake: FakeSpritesPlatform) async {
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: Self.sprite)
+        await GitHubLoginFlowTests.scriptGh(fake, sprite: Self.sprite)
         await fake.scriptExec(where: { $0.argv.first == "npm" && $0.argv.last == "t3" }) { _, io in
             await fake.setFile(
                 on: Self.sprite, path: "/home/sprite/.local/bin/t3", content: "#!bin")
@@ -36,6 +37,7 @@ struct BoardTests {
             while let prompt = await run.nextPrompt() {
                 switch prompt {
                 case .openURLAndEnterCode: run.respond(.text("auth-code-42"))
+                case .openURLAndShowCode: run.respond(.acknowledged)
                 case .consent: run.respond(.approved)
                 case .t3Pairing: run.respond(.acknowledged)
                 case .claudeMintedToken: run.respond(.acknowledged)
@@ -59,15 +61,20 @@ struct BoardTests {
         let model = await board(fake)
 
         let rows = try #require(model.board)
-        #expect(rows.map(\.category) == [.codingAgent, .controlPlane])
-        #expect(rows.map { $0.tiles.map(\.id) } == [["claude-code"], ["t3-code"]])
+        #expect(rows.map(\.category) == [.codingAgent, .controlPlane, .other])
+        #expect(rows.map { $0.tiles.map(\.id) } == [["claude-code"], ["t3-code"], ["github"]])
         #expect(rows.flatMap(\.tiles).allSatisfy { !$0.status.isReady })
         // The tile carries what the integration offers, so a tap needs no
         // further observation.
         #expect(rows[0].tiles[0].flows.map(\.id) == ["claude-code-login"])
         #expect(rows[1].tiles[0].flows.map(\.id) == ["t3-setup"])
-        // Empty categories have no row.
-        #expect(!rows.contains { $0.category == .other })
+        #expect(rows[2].tiles[0].flows.map(\.id) == ["github-login"])
+    }
+
+    @Test func emptyCategoriesHaveNoRow() async throws {
+        let fake = await makeCreatedSprite()
+        let model = await board(fake, integrations: [Integrations.claudeCode])
+        #expect(model.board?.map(\.category) == [.codingAgent])
     }
 
     @Test func aTileIsReobservedAfterItsFlowRuns() async throws {
@@ -78,7 +85,7 @@ struct BoardTests {
         #expect(claude.status.isReady == false)
 
         // The T3 setup reads as blocked from the Board alone (no probe).
-        let t3Setup = try #require(model.board?.last?.tiles.first?.flows.first)
+        let t3Setup = try #require(model.board?.flatMap(\.tiles).first { $0.id == "t3-code" }?.flows.first)
         #expect(model.blockedReason(for: t3Setup) == "This needs Claude Code ready on this sprite. Run its Flow first.")
 
         let run = FlowRun(flow: claude.flows[0], platform: fake, sprite: Self.sprite)
@@ -128,7 +135,7 @@ struct BoardTests {
         await detail.refresh()
         #expect(detail.integrationLines?.isEmpty == false)
         #expect(detail.integrationLines?.allSatisfy { !$0.isReady } == true)
-        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup"])
+        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup", "github-login"])
     }
 
     @Test func interruptionAfterOneFlowLeavesAConsistentObservableSprite() async throws {

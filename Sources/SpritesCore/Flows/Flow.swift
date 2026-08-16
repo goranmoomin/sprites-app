@@ -31,6 +31,10 @@ public protocol FlowStep: Sendable {
 public enum FlowPrompt: Sendable, Equatable {
     /// Show an open-URL button and a code paste field.
     case openURLAndEnterCode(url: URL, instructions: String)
+    /// The inverse: show an open-URL button and OUR code, prominent and
+    /// copyable, for the user to type into that page (gh's device flow).
+    /// The step keeps running underneath while this shows.
+    case openURLAndShowCode(url: URL, code: String, instructions: String)
     /// An explicit consent gate (e.g. making the sprite URL public).
     case consent(title: String, message: String, approveTitle: String)
     /// Show the T3 Pairing credential (defined with the T3 integration).

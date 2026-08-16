@@ -430,3 +430,20 @@ and removed from both Sprites afterwards, verified clean.
 - `gh` is 2.79.0, baked root-owned at `/.sprite/bin/gh` (55 MB, dated Jul
   30), and is not upgradable by the `sprite` user without installing a
   second copy.
+
+## Implemented (integrations ticket 06, 2026-08-16)
+
+`GitHubIntegration` plus `GitHubLoginFlow`, shaped as recommended above:
+non-TTY device flow behind the new `.openURLAndShowCode` prompt, own
+`github-login` keep-alive task, stale sessions swept by the argv suffix,
+capture through `gh auth token` plus `gh api user`, save-with-consent as
+`SavedGitHubLogin`, plant as `config.yml` then `hosts.yml` then `chmod 600`
+then `setup-git`, identity set only while the base image's noreply address
+is in place, verify through `gh api user --jq .login` with no consent gate
+and a fall-through to a fresh mint on `Bad credentials`. Observation is the
+`oauth_token:` line in `hosts.yml` (a bare `{}` is logged out) with the
+account as a detail; scopes are not on the Sprite and are not shown.
+
+Live rig: `InteractiveGitHubTests`, which also records the still-unpinned
+`config.yml`-without-`hosts.yml` behaviour and the real `gh auth status`.
+No logout Flow, per the 2026-08-16 decision.

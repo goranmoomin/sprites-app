@@ -4,9 +4,13 @@
 
 **Blocked by:** None - can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `IntegrationStatus` gains `details`, an ordered list of label/value pairs, defaulting to empty
-- [ ] The detail screen renders details under the summary; long-press on a row copies the value to the pasteboard
-- [ ] T3 Code's summary is "service running" / "service <state>" / "not set up" and its version is a detail
-- [ ] Tests assert the T3 version detail and the unchanged summary; existing summary assertions updated
+- [x] `IntegrationStatus` gains `details`, an ordered list of label/value pairs, defaulting to empty
+- [x] The detail screen renders details under the summary; long-press on a row copies the value to the pasteboard
+- [x] T3 Code's summary is "service running" / "service <state>" / "not set up" and its version is a detail
+- [x] Tests assert the T3 version detail and the unchanged summary; existing summary assertions updated
+
+## Answer
+
+Done in 1ae0b01. `IntegrationStatus.details` with `Detail(label, value)`; rows copy on long-press (`IntegrationDetailRow`, context menu); T3's version is a detail.

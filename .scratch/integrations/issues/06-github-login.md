@@ -4,13 +4,17 @@
 
 **Blocked by:** 02 (Requirement and Category), 03 (Status details), 04 (SavedLoginStore).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `GitHubIntegration` registered, category other, offering the login Flow when not logged in; observation reads `hosts.yml` and requires an `oauth_token:` line (a bare `{}` is logged out); details show login and scopes
-- [ ] New integration-neutral prompt `.openURLAndShowCode(url, code, instructions)`; the code is copyable; the step keeps running underneath
-- [ ] Mint is a non-TTY exec with the default scopes plus `workflow`, update notifier disabled, own short keep-alive task, killable by session id, stale sessions swept by command suffix; code and URL parsed from stderr by anchor; the deadline exit reads as "you never finished"
-- [ ] Capture via `gh auth token` and `gh api user` immediately after the mint; save-with-consent as `SavedGitHubLogin {token, login, name, id, scopes, mintedAt}`
-- [ ] Plant writes `config.yml` first, then `hosts.yml` with the load-bearing keys, chmods both to 600, runs `gh auth setup-git`, sets `user.name`/`user.email` only when the current email is the base image's
-- [ ] Verify step runs `gh api user --jq .login` without a consent gate, falling back to `gh auth status` verbatim, and surfaces a `(GH_TOKEN)` source
-- [ ] Never a PTY, never `GH_TOKEN`, token never in argv
-- [ ] Tests against the fake: recognition (none), flow offering, mint happy/declined/deadline, save then silent plant, identity guard, `{}` is logged out, cold-deep-call tripwire, stderr-line tripwire; a `SPRITES_INTERACTIVE=1` live rig; a findings entry
+- [x] `GitHubIntegration` registered, category other, offering the login Flow when not logged in; observation reads `hosts.yml` and requires an `oauth_token:` line (a bare `{}` is logged out); details show login and scopes
+- [x] New integration-neutral prompt `.openURLAndShowCode(url, code, instructions)`; the code is copyable; the step keeps running underneath
+- [x] Mint is a non-TTY exec with the default scopes plus `workflow`, update notifier disabled, own short keep-alive task, killable by session id, stale sessions swept by command suffix; code and URL parsed from stderr by anchor; the deadline exit reads as "you never finished"
+- [x] Capture via `gh auth token` and `gh api user` immediately after the mint; save-with-consent as `SavedGitHubLogin {token, login, name, id, scopes, mintedAt}`
+- [x] Plant writes `config.yml` first, then `hosts.yml` with the load-bearing keys, chmods both to 600, runs `gh auth setup-git`, sets `user.name`/`user.email` only when the current email is the base image's
+- [x] Verify step runs `gh api user --jq .login` without a consent gate, falling back to `gh auth status` verbatim, and surfaces a `(GH_TOKEN)` source
+- [x] Never a PTY, never `GH_TOKEN`, token never in argv
+- [x] Tests against the fake: recognition (none), flow offering, mint happy/declined/deadline, save then silent plant, identity guard, `{}` is logged out, cold-deep-call tripwire, stderr-line tripwire; a `SPRITES_INTERACTIVE=1` live rig; a findings entry
+
+## Answer
+
+Done in fae8701. `GitHubIntegration`/`GitHubLoginFlow`, `.openURLAndShowCode`, `SavedGitHubLogin`, plant order and chmod, `setup-git`, guarded identity, ungated verify with dead-token fall-through, `hosts.yml` `oauth_token:` observation with the account as a detail (scopes are not on the Sprite and are not shown), tripwires, live rig `InteractiveGitHubTests`, findings note.

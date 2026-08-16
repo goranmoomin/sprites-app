@@ -4,12 +4,16 @@
 
 **Blocked by:** 02 (Requirement and Category), 03 (Status details).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `t3-setup-connect` Flow with the same Requirement as `t3-setup`, reusing the existing install and Service steps unchanged
-- [ ] Consent copy covers tunnel, account, relay contents (control plane only; titles transit and reach APNs; TLS ends at Cloudflare's edge on T3's zone) and the per-Sprite cost
-- [ ] Headless login step: non-TTY exec, URL parsed from stdout, `.openURLAndEnterCode`, code written to the session's stdin, success line parsed
-- [ ] Link, Service restart, poll for the relay-confirmed marker file with a bounded budget; readiness on the Connect path is that file
-- [ ] Observation adds details for authorization present, desired mode, and linked; file probes only
-- [ ] The T3 integration orders its Flows Connect, pairing over public URL, (later) pairing over tailnet, Pair again
-- [ ] Tests against the fake: flow offering, happy path, declined consent, login exit without success line, link never confirmed, cold-deep-call tripwire, tripwires for the login URL line and the credential/marker file names; a live rig; a findings entry
+- [x] `t3-setup-connect` Flow with the same Requirement as `t3-setup`, reusing the existing install and Service steps unchanged
+- [x] Consent copy covers tunnel, account, relay contents (control plane only; titles transit and reach APNs; TLS ends at Cloudflare's edge on T3's zone) and the per-Sprite cost
+- [x] Headless login step: non-TTY exec, URL parsed from stdout, `.openURLAndEnterCode`, code written to the session's stdin, success line parsed
+- [x] Link, Service restart, poll for the relay-confirmed marker file with a bounded budget; readiness on the Connect path is that file
+- [x] Observation adds details for authorization present, desired mode, and linked; file probes only
+- [x] The T3 integration orders its Flows Connect, pairing over public URL, (later) pairing over tailnet, Pair again
+- [x] Tests against the fake: flow offering, happy path, declined consent, login exit without success line, link never confirmed, cold-deep-call tripwire, tripwires for the login URL line and the credential/marker file names; a live rig; a findings entry
+
+## Answer
+
+Done in b1730a2. `t3-setup-connect` first in T3's chooser (Connect, pairing, tailnet, Pair again), consent copy, headless login with stdin code and one reattach, link, Service stop/start, relay marker poll (interval and timeout parameters), `T3 Connect` observation detail from one presence exec, `T3ConnectOutputParser` tripwires, live rig `InteractiveT3ConnectTests`, findings note.

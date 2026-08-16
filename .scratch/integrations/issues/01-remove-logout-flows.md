@@ -4,9 +4,13 @@
 
 **Blocked by:** None - can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The Claude Code logout Flow, its step, and its offering are gone; the detail screen never lists it
-- [ ] The Claude login save consent and the checkpoint copy mention that a restore can bring a login back and that deleting the Sprite is the reversal
-- [ ] Logout tests are removed; flow-offering tests assert no logout Flow is offered on a logged-in Sprite
-- [ ] ADR-0007 (already amended) matches the code
+- [x] The Claude Code logout Flow, its step, and its offering are gone; the detail screen never lists it
+- [x] The Claude login save consent and the checkpoint copy mention that a restore can bring a login back and that deleting the Sprite is the reversal
+- [x] Logout tests are removed; flow-offering tests assert no logout Flow is offered on a logged-in Sprite
+- [x] ADR-0007 (already amended) matches the code
+
+## Answer
+
+Done in 4a5857a. Claude's logout Flow, step and tests removed; save-consent and restore copy state that a restore can bring a login back and deleting the Sprite is the reversal.

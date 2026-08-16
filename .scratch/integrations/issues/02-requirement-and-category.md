@@ -4,11 +4,15 @@
 
 **Blocked by:** None - can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Flow` carries `requires: [Requirement]`; `Requirement` is an any-of set of Integration ids, exposed as static members by the integrations that own them (T3 Code's supported coding agents)
-- [ ] `Integration` declares `category` and nothing about capabilities; `Capability` no longer exists
-- [ ] `FlowRun` checks Requirements once at start; the blocked outcome names the products; `RequireCodingAgentStep` and the playlist's separate pre-check are removed
-- [ ] The registry helper answers "first ready among these ids"
-- [ ] Tests: any-of satisfaction, all-of across Requirements, blocked sentence wording, T3 setup blocked without a ready supported coding agent from both launch points
-- [ ] Glossary terms Requirement and Category are used in code names and comments
+- [x] `Flow` carries `requires: [Requirement]`; `Requirement` is an any-of set of Integration ids, exposed as static members by the integrations that own them (T3 Code's supported coding agents)
+- [x] `Integration` declares `category` and nothing about capabilities; `Capability` no longer exists
+- [x] `FlowRun` checks Requirements once at start; the blocked outcome names the products; `RequireCodingAgentStep` and the playlist's separate pre-check are removed
+- [x] The registry helper answers "first ready among these ids"
+- [x] Tests: any-of satisfaction, all-of across Requirements, blocked sentence wording, T3 setup blocked without a ready supported coding agent from both launch points
+- [x] Glossary terms Requirement and Category are used in code names and comments
+
+## Answer
+
+Done in 9ab7bfc. `Requirement(anyOf:)` on `Flow.requires`, checked once at the start of `FlowRun` (new `.blocked` phase with `blockedReason`, retry re-checks); `Integration.category`; `Capability`, `provides`, `requires` and `RequireCodingAgentStep` removed. Follow-up in ab8824b: the check reads the sprite's Services once so daemon-backed providers observe honestly.

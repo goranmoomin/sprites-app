@@ -81,10 +81,20 @@ public protocol Integration: Sendable {
     /// Per-integration ordering is the integration's own; callers keep
     /// cross-integration registry order.
     func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow]
+
+    /// The Saved login this integration keeps in the store, as the app
+    /// menu's display line; nil when it keeps none.
+    func describeSavedLogin(in store: any SavedLoginStore) -> String?
+}
+
+extension Integration {
+    public func describeSavedLogin(in store: any SavedLoginStore) -> String? { nil }
 }
 
 /// The registry.
 public enum Integrations {
+    /// The one app-side store every integration's Saved login lives in.
+    public static let savedLogins: any SavedLoginStore = KeychainSavedLoginStore()
     public static let claudeCode = ClaudeCodeIntegration()
     public static let t3Code = T3CodeIntegration()
     public static var all: [any Integration] { [claudeCode, t3Code] }

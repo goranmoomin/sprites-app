@@ -117,7 +117,7 @@ struct LivePlatformSmokeTests {
         // the native step UI appears (URL extracted from the headless PTY),
         // then declines. Completing the OAuth needs a human.
         let run = FlowRun(
-            flow: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore())
+            flow: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore())
                 .loginFlow(urlTimeout: .seconds(60)),
             platform: Self.platform, sprite: Self.sprite)
 

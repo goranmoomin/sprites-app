@@ -54,8 +54,7 @@ struct ClaudeVerifyStepTests {
         // scripts stand ready for the fall-through.
         await ClaudeCodeLoginFlowTests.scriptInferenceProbe(fake, ok: false)
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: Self.sprite)
-        let store = InMemoryClaudeLoginStore(
-            login: SavedClaudeLogin(token: "sk-ant-oat01-DEADDEAD", mintedAt: Date()))
+        let store = InMemorySavedLoginStore(claudeLogin: SavedClaudeLogin(token: "sk-ant-oat01-DEADDEAD", mintedAt: Date()))
 
         let run = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
@@ -86,7 +85,7 @@ struct ClaudeVerifyStepTests {
         #expect(run.phase == .succeeded)
         #expect(sawMintDialogue.value, "expected the fall-through into the mint dialogue")
         // The dead login was forgotten, and the fresh mint was planted.
-        #expect(store.load() == nil)
+        #expect(store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id) == nil)
         let settings = try #require(await fake.fileContents(
             on: Self.sprite, path: "/home/sprite/.claude/settings.json"))
         #expect(settings.contains(ClaudeCodeLoginFlowTests.mintedToken))
@@ -97,7 +96,7 @@ struct ClaudeVerifyStepTests {
         let fake = await makeFake()
         await ClaudeCodeLoginFlowTests.scriptInferenceProbe(fake, ok: false)
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: Self.sprite)
-        let store = InMemoryClaudeLoginStore()
+        let store = InMemorySavedLoginStore()
 
         let run = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
@@ -121,7 +120,7 @@ struct ClaudeVerifyStepTests {
         #expect(run.failureMessage?.contains("verification probe") == true)
         // The save waits for the verify: a token that just failed the
         // probe never becomes the saved login.
-        #expect(store.load() == nil)
+        #expect(store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id) == nil)
     }
 
     @Test func hungProbeFailsTheStepButLeavesThePlantInPlace() async throws {
@@ -132,8 +131,7 @@ struct ClaudeVerifyStepTests {
             try? await Task.sleep(for: .seconds(60))
             io.exit(0)
         }
-        let store = InMemoryClaudeLoginStore(
-            login: SavedClaudeLogin(token: ClaudeLoginReuseTests.savedToken, mintedAt: Date()))
+        let store = InMemorySavedLoginStore(claudeLogin: SavedClaudeLogin(token: ClaudeLoginReuseTests.savedToken, mintedAt: Date()))
 
         let run = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(
@@ -156,7 +154,7 @@ struct ClaudeVerifyStepTests {
         #expect(run.failureMessage?.contains("timed out") == true)
         // A hung CLI is not a dead credential: nothing forgotten, the
         // planted token stays.
-        #expect(store.load() != nil)
+        #expect(store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id) != nil)
         let settings = try #require(await fake.fileContents(
             on: Self.sprite, path: "/home/sprite/.claude/settings.json"))
         #expect(settings.contains(ClaudeLoginReuseTests.savedToken))

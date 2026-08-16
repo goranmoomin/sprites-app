@@ -3,7 +3,8 @@ import Foundation
 /// Control-plane integration for T3 Code: recognizes `t3 serve` services by
 /// command shape and contributes the Open in T3 Code handoff.
 public struct T3CodeIntegration: Integration {
-    public let id = "t3-code"
+    public static let id = "t3-code"
+    public var id: String { Self.id }
     public let displayName = "T3 Code"
     public let category = Category.controlPlane
 

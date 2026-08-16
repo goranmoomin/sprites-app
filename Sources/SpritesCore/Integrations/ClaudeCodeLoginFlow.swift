@@ -144,7 +144,7 @@ public enum ClaudeOutputParser {
 struct ClaudeLoginStep: FlowStep {
     let id = "claude-login"
     let title = "Log in to Claude"
-    let store: any ClaudeLoginStore
+    let store: any SavedLoginStore
     let urlTimeout: Duration
     let verifyTimeout: Duration
 
@@ -155,7 +155,7 @@ struct ClaudeLoginStep: FlowStep {
     static let probeArgv = ["claude", "-p", "Reply with exactly: ok"]
 
     func run(in context: FlowContext) async throws {
-        if let saved = store.load() {
+        if let saved = store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id) {
             context.output(
                 "Using the saved Claude login (saved "
                     + "\(saved.mintedAt.formatted(date: .abbreviated, time: .omitted)))\n")
@@ -166,7 +166,7 @@ struct ClaudeLoginStep: FlowStep {
             // year old): forget it and fall through to a fresh mint in
             // place, so recovery never leaves the screen.
             if try await verifyIfWanted(in: context) == false {
-                store.clear()
+                store.clear(for: ClaudeCodeIntegration.id)
                 context.output(
                     "The saved Claude login no longer works; it has been forgotten. "
                         + "Sign in again to mint a new one.\n")
@@ -419,7 +419,7 @@ struct ClaudeLoginStep: FlowStep {
                 "The minted token failed the verification probe. Retry to mint again.")
         }
         if save {
-            store.save(SavedClaudeLogin(token: token, mintedAt: Date()))
+            store.save(SavedClaudeLogin(token: token, mintedAt: Date()), for: ClaudeCodeIntegration.id)
             context.output("Saved the login for reuse on other Sprites\n")
         }
     }

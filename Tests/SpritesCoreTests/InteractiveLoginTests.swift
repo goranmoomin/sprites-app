@@ -34,7 +34,7 @@ struct InteractiveLoginTests {
         }
 
         let run = FlowRun(
-            flow: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore())
+            flow: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore())
                 .loginFlow(urlTimeout: .seconds(120)),
             platform: platform, sprite: sprite)
 
@@ -154,7 +154,7 @@ struct InteractiveLoginTests {
             note("### CREATED sprite \(sprite)")
         }
 
-        let store = InMemoryClaudeLoginStore(login: SavedClaudeLogin(
+        let store = InMemorySavedLoginStore(claudeLogin: SavedClaudeLogin(
             token: environment["SPRITES_LIVE_CLAUDE_TOKEN"]!, mintedAt: Date()))
         let run = FlowRun(
             flow: ClaudeCodeIntegration(loginStore: store).loginFlow(),

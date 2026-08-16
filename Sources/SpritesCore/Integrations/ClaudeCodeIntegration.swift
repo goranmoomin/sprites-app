@@ -3,7 +3,8 @@ import Foundation
 /// Coding-agent integration for Claude Code. "Logged in" is observed from
 /// the CLI's own auth probe on the Sprite, never remembered app-side.
 public struct ClaudeCodeIntegration: Integration {
-    public let id = "claude-code"
+    public static let id = "claude-code"
+    public var id: String { Self.id }
     public let displayName = "Claude Code"
     public let category = Category.codingAgent
 
@@ -18,10 +19,15 @@ public struct ClaudeCodeIntegration: Integration {
     public static let xdgOpenLogPath = "/tmp/xdg-open.log"
 
     /// The app-side saved login the branching login Flow reuses.
-    public let loginStore: any ClaudeLoginStore
+    public let loginStore: any SavedLoginStore
 
-    public init(loginStore: any ClaudeLoginStore = KeychainClaudeLoginStore()) {
+    public init(loginStore: any SavedLoginStore = Integrations.savedLogins) {
         self.loginStore = loginStore
+    }
+
+    public func describeSavedLogin(in store: any SavedLoginStore) -> String? {
+        guard let login = store.load(SavedClaudeLogin.self, for: id) else { return nil }
+        return "Saved login from " + login.mintedAt.formatted(date: .abbreviated, time: .omitted)
     }
 
     public func recognizes(_ service: Service) -> Bool {

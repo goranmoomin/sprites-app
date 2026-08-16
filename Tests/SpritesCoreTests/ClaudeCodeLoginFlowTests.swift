@@ -97,7 +97,7 @@ struct ClaudeCodeLoginFlowTests {
     /// A login Flow backed by an in-memory store: tests must never read
     /// (or worse, write) the developer's real Keychain slot.
     nonisolated static func loginFlow(
-        store: any ClaudeLoginStore = InMemoryClaudeLoginStore(),
+        store: any SavedLoginStore = InMemorySavedLoginStore(),
         urlTimeout: Duration = .seconds(180),
         verifyTimeout: Duration = .seconds(120)
     ) -> Flow {

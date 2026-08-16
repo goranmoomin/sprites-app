@@ -46,7 +46,7 @@ struct CreateSpritePlaylistTests {
         await scriptHappyDialogues(fake)
         let playlist = CreateSpritePlaylist(
             platform: fake, sprite: Self.sprite,
-            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore()))
 
         while let entryID = playlist.nextPendingID {
             let run = try #require(await playlist.startEntry(entryID))
@@ -69,7 +69,7 @@ struct CreateSpritePlaylistTests {
         let fake = await makeCreatedSprite()
         let playlist = CreateSpritePlaylist(
             platform: fake, sprite: Self.sprite,
-            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore()))
 
         while let entryID = playlist.nextPendingID {
             playlist.skip(entryID)
@@ -92,7 +92,7 @@ struct CreateSpritePlaylistTests {
         await scriptHappyDialogues(fake)
         let playlist = CreateSpritePlaylist(
             platform: fake, sprite: Self.sprite,
-            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore()))
 
         // Run only the Claude login, then the app dies. No cleanup runs.
         let entryID = try #require(playlist.nextPendingID)
@@ -114,7 +114,7 @@ struct CreateSpritePlaylistTests {
         let fake = await makeCreatedSprite()
         let playlist = CreateSpritePlaylist(
             platform: fake, sprite: Self.sprite,
-            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore()))
 
         // Skip the Claude login, then try the T3 setup.
         playlist.skip(playlist.entries[0].id)
@@ -134,7 +134,7 @@ struct CreateSpritePlaylistTests {
         let fake = await makeCreatedSprite()
         let playlist = CreateSpritePlaylist(
             platform: fake, sprite: Self.sprite,
-            claudeCode: ClaudeCodeIntegration(loginStore: InMemoryClaudeLoginStore()))
+            claudeCode: ClaudeCodeIntegration(loginStore: InMemorySavedLoginStore()))
 
         #expect(playlist.entries.map(\.flow.id) == [
             Integrations.claudeCode.loginFlow().id,

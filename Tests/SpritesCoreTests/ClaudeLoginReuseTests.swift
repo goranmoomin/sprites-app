@@ -14,8 +14,7 @@ struct ClaudeLoginReuseTests {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: "second-sprite-5678", status: .running)
         await ClaudeCodeLoginFlowTests.scriptAuthStatus(fake, sprite: "second-sprite-5678")
-        let store = InMemoryClaudeLoginStore(
-            login: SavedClaudeLogin(token: Self.savedToken, mintedAt: Date()))
+        let store = InMemorySavedLoginStore(claudeLogin: SavedClaudeLogin(token: Self.savedToken, mintedAt: Date()))
 
         let run = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
@@ -56,7 +55,7 @@ struct ClaudeLoginReuseTests {
         await fake.addSprite(name: "first-sprite-1234", status: .running)
         await fake.addSprite(name: "second-sprite-5678", status: .running)
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: "first-sprite-1234")
-        let store = InMemoryClaudeLoginStore()
+        let store = InMemorySavedLoginStore()
 
         let mint = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
@@ -77,7 +76,7 @@ struct ClaudeLoginReuseTests {
         await responder.value
 
         #expect(mint.phase == .succeeded)
-        let saved = try #require(store.load())
+        let saved = try #require(store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id))
         #expect(saved.token == ClaudeCodeLoginFlowTests.mintedToken)
 
         // The next sprite reuses it with no browser and no paste.
@@ -108,7 +107,7 @@ struct ClaudeLoginReuseTests {
         await fake.addSprite(name: "first-sprite-1234", status: .running)
         await fake.addSprite(name: "second-sprite-5678", status: .running)
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: "first-sprite-1234")
-        let store = InMemoryClaudeLoginStore()
+        let store = InMemorySavedLoginStore()
 
         let mint = FlowRun(
             flow: ClaudeCodeLoginFlowTests.loginFlow(store: store),
@@ -129,7 +128,7 @@ struct ClaudeLoginReuseTests {
         await responder.value
 
         #expect(mint.phase == .succeeded)
-        #expect(store.load() == nil)
+        #expect(store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id) == nil)
 
         // With nothing saved, the next sprite walks the dialogue again.
         let again = FlowRun(
@@ -144,13 +143,26 @@ struct ClaudeLoginReuseTests {
         #expect(await secondPrompt.value, "expected the mint dialogue on the second sprite")
     }
 
-    @Test func savedLoginRoundTripsThroughTheKeychainEncoding() throws {
+    @Test func savedLoginRoundTripsThroughTheStoreEncoding() throws {
         let login = SavedClaudeLogin(
             token: Self.savedToken, mintedAt: Date(timeIntervalSince1970: 1_786_000_000))
-        let data = try #require(SavedClaudeLogin.encode(login))
-        let decoded = try #require(SavedClaudeLogin.decode(data))
+        let store = InMemorySavedLoginStore()
+        store.save(login, for: ClaudeCodeIntegration.id)
+        let decoded = try #require(store.load(SavedClaudeLogin.self, for: ClaudeCodeIntegration.id))
         #expect(decoded.token == login.token)
         // ISO8601 keeps second precision; that is all the display needs.
         #expect(abs(decoded.mintedAt.timeIntervalSince(login.mintedAt)) < 1)
+        // The payload is the JSON the pre-store Claude Keychain item held,
+        // so a migrated item decodes unchanged.
+        let raw = try #require(store.load(for: ClaudeCodeIntegration.id))
+        #expect(String(decoding: raw, as: UTF8.self).contains(#""token":""# + Self.savedToken))
+    }
+}
+
+extension InMemorySavedLoginStore {
+    /// A store pre-seeded with one saved Claude login.
+    convenience init(claudeLogin: SavedClaudeLogin) {
+        self.init()
+        save(claudeLogin, for: ClaudeCodeIntegration.id)
     }
 }

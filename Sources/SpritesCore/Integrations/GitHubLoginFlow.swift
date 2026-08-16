@@ -104,10 +104,9 @@ struct GitHubLoginStep: FlowStep {
     let title = "Log in to GitHub"
     let store: any SavedLoginStore
 
-    static let mintArgv = GitHubIntegration.loginArgv
     /// The session list reports resolved path + args (observed live), so
     /// stale-login matching is by this suffix, never argv[0].
-    static var mintCommandSuffix: String { mintArgv.joined(separator: " ") }
+    static var mintCommandSuffix: String { GitHubIntegration.loginArgv.joined(separator: " ") }
 
     func run(in context: FlowContext) async throws {
         if let saved = store.load(SavedGitHubLogin.self, for: GitHubIntegration.id) {
@@ -145,6 +144,14 @@ struct GitHubLoginStep: FlowStep {
         let user = try await context.platform.runCapturing(
             on: context.sprite, ["gh", "api", "user", "--jq", ".login"], env: GitHubIntegration.ghEnv)
         if user.exitCode == 0 {
+            // gh names its token source in parentheses; an env token
+            // silently masks the planted file account.
+            let status = try await context.platform.runCapturing(
+                on: context.sprite, ["gh", "auth", "status"], env: GitHubIntegration.ghEnv)
+            if (status.stdoutText + status.stderrText).contains("(GH_TOKEN)") {
+                context.output(
+                    "This Sprite is using a token from GH_TOKEN, not the planted login.\n")
+            }
             return .loggedIn(user.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         if user.stderrText.contains("Bad credentials") || user.stderrText.contains("HTTP 401") {
@@ -187,7 +194,7 @@ struct GitHubLoginStep: FlowStep {
         // Never a PTY: under one gh prompts through a terminal query that
         // hangs headlessly (observed live). Stdin closed, as /dev/null.
         let session = try await context.platform.exec(
-            on: context.sprite, command: ExecCommand(Self.mintArgv, env: GitHubIntegration.ghEnv))
+            on: context.sprite, command: ExecCommand(GitHubIntegration.loginArgv, env: GitHubIntegration.ghEnv))
         try await session.sendEOF()
         let sessionID = await session.sessionID
         do {

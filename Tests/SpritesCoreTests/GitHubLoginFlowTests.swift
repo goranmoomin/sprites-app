@@ -74,9 +74,20 @@ struct GitHubLoginFlowTests {
             }
             io.exit(0)
         }
-        await fake.scriptExec(where: { $0.argv.starts(with: ["gh", "auth", "status"]) }) { _, io in
-            io.stderr("github.com\n  X Failed to log in to github.com account goranmoomin (/home/sprite/.config/gh/hosts.yml)\n  - The token in /home/sprite/.config/gh/hosts.yml is invalid.\n")
-            io.exit(1)
+        await fake.scriptExec(where: { $0.argv.starts(with: ["gh", "auth", "status"]) }) { command, io in
+            // Names its source in parentheses: an env token beats the file.
+            if let env = command.env["GH_TOKEN"], !env.isEmpty {
+                io.stderr("github.com\n  \u{2713} Logged in to github.com account goranmoomin (GH_TOKEN)\n")
+                io.exit(0)
+            } else if let hosts = await fake.fileContents(on: sprite, path: hostsPath),
+                let match = hosts.firstMatch(of: /oauth_token: (\S+)/), String(match.1) != deadToken
+            {
+                io.stderr("github.com\n  \u{2713} Logged in to github.com account goranmoomin (\(hostsPath))\n")
+                io.exit(0)
+            } else {
+                io.stderr("github.com\n  X Failed to log in to github.com account goranmoomin (\(hostsPath))\n  - The token in \(hostsPath) is invalid.\n")
+                io.exit(1)
+            }
         }
         await fake.scriptExec(where: { $0.argv.starts(with: ["gh", "auth", "setup-git"]) }) { _, io in
             let current = await fake.fileContents(on: sprite, path: gitconfigPath) ?? ""

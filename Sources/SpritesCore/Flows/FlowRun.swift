@@ -90,8 +90,8 @@ public final class FlowRun {
 
     private func run(from index: Int) async {
         phase = .running
-        // Requirements gate the first step only (ADR 0008); a retry after a
-        // derail resumes past them.
+        // Requirements gate the flow's start only (ADR 0008); a retry after
+        // a derail past the first step resumes without re-checking.
         if index == 0,
             let reason = await Integrations.unmetRequirementReason(
                 of: flow, on: sprite, platform: platform, among: integrations)

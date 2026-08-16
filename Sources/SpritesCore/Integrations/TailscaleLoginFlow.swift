@@ -1,7 +1,7 @@
 import Foundation
 
 extension TailscaleIntegration {
-    /// Log in to Tailscale on the sprite: install, define the daemon
+    /// Log in to Tailscale on the sprite: install, define the tailscaled
     /// Service, then join with the saved auth key, or paste one first.
     public func loginFlow() -> Flow {
         Flow(
@@ -101,7 +101,7 @@ struct TailscaleUpStep: FlowStep {
     }
 
     func run(in context: FlowContext) async throws {
-        try await waitForDaemon(in: context)
+        try await waitForTailscaled(in: context)
         if let saved = store.load(SavedTailscaleLogin.self, for: TailscaleIntegration.id) {
             context.output("Using the saved Tailscale auth key\n")
             switch try await up(with: saved.authKey, in: context) {
@@ -124,17 +124,21 @@ struct TailscaleUpStep: FlowStep {
             title: "Save the auth key?",
             message: "Saving lets the app join later Sprites to your tailnet with no browser. "
                 + "The key stays in this app only; revoke it at Tailscale's admin console. "
-                + "Auth keys expire after at most 90 days, and the app will ask for a new one then.",
+                + "Auth keys expire after at most 90 days, and the app will ask for a new one then. "
+                + "Do not checkpoint a Sprite after it joins: a restore brings back a stale node, "
+                + "and the node stays listed in the admin console until you remove it there.",
             approveTitle: "Save for other Sprites"))
         if save == .approved {
             store.save(SavedTailscaleLogin(authKey: key, savedAt: Date()), for: TailscaleIntegration.id)
             context.output("Saved the auth key for reuse on other Sprites\n")
         }
+        context.output(
+            "Do not checkpoint this Sprite after joining: a restore would resurrect a stale node.\n")
     }
 
-    /// The daemon's socket is up well under a second after the Service
+    /// tailscaled's socket is up well under a second after the Service
     /// starts (observed live); every call before that exits 1.
-    private func waitForDaemon(in context: FlowContext) async throws {
+    private func waitForTailscaled(in context: FlowContext) async throws {
         for _ in 0..<20 {
             let probe = try await context.platform.runCapturing(
                 on: context.sprite, [TailscaleIntegration.tailscalePath, "status", "--json"])
@@ -163,11 +167,13 @@ struct TailscaleUpStep: FlowStep {
         case keyRejected(String)
     }
 
-    /// One `up`, key over a 600 file that is removed afterwards. Two
-    /// failures are not the key's fault and fail the step verbatim: the
-    /// complete-set-of-flags error and a daemon that is not answering.
-    /// Everything else `up` refuses reads as a rejected key (the exact
-    /// wordings for expired and revoked keys are still unmeasured).
+    /// One `up`, key over a 600 file that is removed afterwards. Not the
+    /// key's fault, so no forgetting: the complete-set-of-flags error and
+    /// a tailscaled that is not answering fail the step verbatim, and a
+    /// tailnet that wants device approval (`NeedsMachineAuth`) asks for it
+    /// in the admin console and polls. Everything else `up` refuses reads
+    /// as a rejected key (the exact wordings for expired and revoked keys
+    /// are still unmeasured).
     private func up(with key: String, in context: FlowContext) async throws -> Outcome {
         try await context.platform.writeFile(
             on: context.sprite, path: TailscaleIntegration.authKeyPath, content: key + "\n")
@@ -200,6 +206,30 @@ struct TailscaleUpStep: FlowStep {
         if stderr.contains("requires mentioning all") || stderr.contains("failed to connect") {
             throw FlowError.failed("tailscale up failed: " + stderr)
         }
+        let after = try await context.platform.runCapturing(
+            on: context.sprite, [TailscaleIntegration.tailscalePath, "status", "--json"])
+        if TailscaleStatus.parse(after.stdout)?.backendState == "NeedsMachineAuth" {
+            try await awaitDeviceApproval(in: context)
+            return .joined
+        }
         return .keyRejected(stderr.isEmpty ? "exit status \(result.exitCode)" : stderr)
+    }
+
+    /// The key was accepted but the tailnet approves devices by hand: an
+    /// external precondition, fixed in the admin console.
+    private func awaitDeviceApproval(in context: FlowContext) async throws {
+        while true {
+            let response = await context.prompt(.openURL(
+                url: TailscaleIntegration.adminMachinesURL,
+                instructions: "Your tailnet requires device approval. Approve \(context.sprite) on the "
+                    + "Machines page, then come back."))
+            guard response == .acknowledged else { throw FlowError.declined }
+            for _ in 0..<12 {
+                let status = try await context.platform.runCapturing(
+                    on: context.sprite, [TailscaleIntegration.tailscalePath, "status", "--json"])
+                if TailscaleStatus.parse(status.stdout)?.backendState == "Running" { return }
+                try await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 }

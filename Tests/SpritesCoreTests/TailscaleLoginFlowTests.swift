@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import SpritesCore
 
-/// Log in to Tailscale against a scripted tailscale: install, the daemon
+/// Log in to Tailscale against a scripted tailscale: install, the tailscaled
 /// Service, the pasted-then-saved auth key, the fixed `up` flag set, and
 /// observation from `status --json`.
 @MainActor
@@ -12,6 +12,7 @@ struct TailscaleLoginFlowTests {
     nonisolated static let expiredKey = "tskey-auth-kEXPIREDXPIRE-abcdefghijklmnopqrstuvwxyz0123456789ABCD"
     nonisolated static let statePath = "/var/lib/tailscale/tailscaled.state"
     nonisolated static let handConfiguredMarker = "/tmp/hand-configured"
+    nonisolated static let needsApprovalMarker = "/tmp/needs-approval"
 
     nonisolated static let loggedInStatus = """
         {"Version":"1.102.2","TUN":true,"BackendState":"Running","AuthURL":"",
@@ -32,7 +33,7 @@ struct TailscaleLoginFlowTests {
     }
 
     /// The tailscale surface, answering from the fake's files the way the
-    /// real daemon answers from its state: `up` with the good key writes
+    /// real tailscaled answers from its state: `up` with the good key writes
     /// the state file, `status --json` reads it back.
     nonisolated static func scriptTailscale(_ fake: FakeSpritesPlatform, sprite: String = sprite) async {
         await fake.scriptExec(where: { $0.argv == ["uname", "-m"] }) { _, io in
@@ -50,7 +51,11 @@ struct TailscaleLoginFlowTests {
         }
         await fake.scriptExec(where: { $0.argv.starts(with: [TailscaleIntegration.tailscalePath, "status", "--json"]) }) { _, io in
             let state = await fake.fileContents(on: sprite, path: statePath) ?? ""
-            io.stdout(state.contains("_current-profile") ? loggedInStatus : loggedOutStatus)
+            if state.contains("_needs-approval") {
+                io.stdout(#"{"BackendState":"NeedsMachineAuth","AuthURL":"","TailscaleIPs":null,"Self":{"DNSName":""}}"#)
+            } else {
+                io.stdout(state.contains("_current-profile") ? loggedInStatus : loggedOutStatus)
+            }
             io.exit(0)
         }
         await fake.scriptExec(where: { $0.argv.starts(with: [TailscaleIntegration.tailscalePath, "up"]) }) { command, io in
@@ -70,7 +75,11 @@ struct TailscaleLoginFlowTests {
                 io.exit(1)
                 return
             }
-            if key == goodKey {
+            if key == goodKey, await fake.fileContents(on: sprite, path: needsApprovalMarker) != nil {
+                await fake.setFile(on: sprite, path: statePath, content: "_machinekey\n_needs-approval\n")
+                io.stderr("timeout waiting for Tailscale service to enter a Running state; check health with \"tailscale status\"\n")
+                io.exit(1)
+            } else if key == goodKey {
                 await fake.setFile(on: sprite, path: statePath, content: "_machinekey\n_current-profile\n")
                 io.exit(0)
             } else {
@@ -113,7 +122,7 @@ struct TailscaleLoginFlowTests {
             return
         }
         #expect(url == TailscaleIntegration.adminKeysURL)
-        // Installed into the user's bin, daemon as a Service with no flags.
+        // Installed into the user's bin, tailscaled as a Service with no flags.
         #expect(await fake.fileContents(on: Self.sprite, path: TailscaleIntegration.tailscaledPath) != nil)
         let service = try #require(try await fake.services(on: Self.sprite).first)
         #expect(service.name == "tailscaled")
@@ -180,7 +189,40 @@ struct TailscaleLoginFlowTests {
         #expect(await fake.execLog.filter { $0.command.argv.contains("up") }.count == 2)
     }
 
-    @Test func aHandConfiguredDaemonSurfacesTailscalesOwnErrorInsteadOfResetting() async throws {
+    @Test func aTailnetThatApprovesDevicesByHandAsksAndKeepsTheKey() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: Self.sprite, status: .running)
+        await Self.scriptTailscale(fake)
+        await fake.setFile(on: Self.sprite, path: Self.needsApprovalMarker, content: "yes")
+        let store = InMemorySavedLoginStore()
+        store.save(SavedTailscaleLogin(authKey: Self.goodKey, savedAt: Date()), for: TailscaleIntegration.id)
+        let run = FlowRun(flow: Self.loginFlow(store: store), platform: fake, sprite: Self.sprite)
+
+        let responder = Task {
+            var prompts: [FlowPrompt] = []
+            while let prompt = await run.nextPrompt() {
+                prompts.append(prompt)
+                guard case .openURL = prompt else { run.respond(.declined); continue }
+                // "The user" approves the device in the admin console.
+                await fake.setFile(on: Self.sprite, path: Self.statePath, content: "_machinekey\n_current-profile\n")
+                run.respond(.acknowledged)
+            }
+            return prompts
+        }
+        await run.start()
+        let prompts = await responder.value
+
+        #expect(run.phase == .succeeded)
+        guard case .openURL(let url, _) = prompts.first else {
+            Issue.record("expected the device-approval ask, got \(prompts)")
+            return
+        }
+        #expect(url == TailscaleIntegration.adminMachinesURL)
+        // Not the key's fault: still saved.
+        #expect(store.load(for: TailscaleIntegration.id) != nil)
+    }
+
+    @Test func aHandConfiguredTailscaledSurfacesItsOwnErrorInsteadOfResetting() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: Self.sprite, status: .running)
         await Self.scriptTailscale(fake)
@@ -207,7 +249,7 @@ struct TailscaleLoginFlowTests {
         #expect(await fake.execLog.allSatisfy { !$0.command.argv.contains("--reset") })
     }
 
-    @Test func aPasteThatIsNotAnAuthKeyFailsBeforeTouchingTheDaemon() async throws {
+    @Test func aPasteThatIsNotAnAuthKeyFailsBeforeTouchingTailscaled() async throws {
         let fake = FakeSpritesPlatform()
         await fake.addSprite(name: Self.sprite, status: .running)
         await Self.scriptTailscale(fake)

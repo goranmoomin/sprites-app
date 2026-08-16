@@ -106,7 +106,7 @@ public enum Integrations {
     /// never app-side memory), or nil when none is.
     public static func readyProvider(
         among ids: [String], on sprite: String, services: [Service],
-        platform: SpritesPlatform, among integrations: [any Integration] = Integrations.all
+        platform: SpritesPlatform, in integrations: [any Integration] = Integrations.all
     ) async -> (integration: any Integration, status: IntegrationStatus)? {
         for integration in integrations where ids.contains(integration.id) {
             guard
@@ -126,13 +126,13 @@ public enum Integrations {
         among integrations: [any Integration] = Integrations.all
     ) async -> String? {
         guard !flow.requires.isEmpty else { return nil }
-        // Providers observe against the sprite's Services (a daemon is a
-        // Service), so they are read once here.
+        // Named integrations observe against the sprite's Services
+        // (tailscaled is one), so they are read once here.
         let services = (try? await platform.services(on: sprite)) ?? []
         for requirement in flow.requires {
             let met = await readyProvider(
                 among: requirement.anyOf, on: sprite, services: services, platform: platform,
-                among: integrations) != nil
+                in: integrations) != nil
             guard !met else { continue }
             return blockedSentence(for: requirement, among: integrations)
         }

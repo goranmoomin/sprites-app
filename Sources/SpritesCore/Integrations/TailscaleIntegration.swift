@@ -2,7 +2,7 @@ import Foundation
 
 /// Log in to Tailscale on a Sprite: a static tailscale in the user's bin,
 /// `tailscaled` as a Service, and the tailnet joined with a reusable auth
-/// key pasted once and saved. "Connected" is observed from the daemon's own
+/// key pasted once and saved. "Connected" is observed from tailscale's own
 /// `status --json`, never remembered app-side.
 public struct TailscaleIntegration: Integration {
     public static let id = "tailscale"
@@ -18,6 +18,7 @@ public struct TailscaleIntegration: Integration {
     /// The pinned-version index: `TarballsVersion` plus per-arch filenames.
     public static let releaseIndexURL = "https://pkgs.tailscale.com/stable/?mode=json"
     public static let adminKeysURL = URL(string: "https://login.tailscale.com/admin/settings/keys")!
+    public static let adminMachinesURL = URL(string: "https://login.tailscale.com/admin/machines")!
     /// Where the auth key sits for the one `up` call (600, then removed):
     /// argv leaks to `ps` and the exec-session list.
     public static let authKeyPath = "/home/sprite/.tailscale-authkey"
@@ -48,13 +49,13 @@ public struct TailscaleIntegration: Integration {
                 summary: "service \(serviceState)", isReady: false,
                 details: [IntegrationStatus.Detail("Service", serviceState)])
         }
-        // One exec, only while the daemon runs. Parse the JSON, never the
+        // One exec, only while the Service runs. Parse the JSON, never the
         // exit code (status exits 1 logged out, 0 with --json).
         let result = try await platform.runCapturing(
             on: sprite, [Self.tailscalePath, "status", "--json"])
         guard let status = TailscaleStatus.parse(result.stdout) else {
             return IntegrationStatus(
-                summary: "daemon not answering", isReady: false,
+                summary: "tailscaled not answering", isReady: false,
                 details: [IntegrationStatus.Detail("Service", serviceState)])
         }
         var details: [IntegrationStatus.Detail] = []

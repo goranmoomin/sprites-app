@@ -31,7 +31,7 @@ public protocol FlowStep: Sendable {
 public enum FlowPrompt: Sendable, Equatable {
     /// Show an open-URL button and a code paste field.
     case openURLAndEnterCode(url: URL, instructions: String)
-    /// The inverse: show an open-URL button and OUR code, prominent and
+    /// The inverse: show an open-URL button and our code, prominent and
     /// copyable, for the user to type into that page (gh's device flow).
     /// The step keeps running underneath while this shows.
     case openURLAndShowCode(url: URL, code: String, instructions: String)

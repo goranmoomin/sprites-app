@@ -9,7 +9,7 @@ extension T3CodeIntegration {
     public static let connectCredentialPath = secretsDirectory + "/cloud-cli-oauth-token.bin"
     public static let connectDesiredLinkPath = secretsDirectory + "/cloud-cli-desired-link.bin"
     /// Written by the relay at reconcile, never by the CLI: presence means
-    /// LINKED, and is the readiness of the Connect path.
+    /// LINKED, and is the readiness of the T3 Connect path.
     public static let connectLinkedUserPath = secretsDirectory + "/cloud-linked-user-id.bin"
 
     /// Set up T3 Code through T3 Connect (managed link): the shared install
@@ -114,10 +114,9 @@ struct T3ConnectLoginStep: FlowStep {
     static let loginArgv = [T3CodeIntegration.binaryPath, "connect", "login", "--headless"]
 
     func run(in context: FlowContext) async throws {
-        let status = try await context.platform.runCapturing(
-            on: context.sprite, [T3CodeIntegration.binaryPath, "connect", "status", "--json"])
-        if let object = try? JSONSerialization.jsonObject(with: status.stdout) as? [String: Any],
-            object["authenticated"] as? Bool == true
+        // Presence-only, like the CLI's own status (which never round-trips).
+        if try await context.platform.fileExists(
+            on: context.sprite, path: T3CodeIntegration.connectCredentialPath)
         {
             context.output("A T3 Connect credential is already present on this Sprite\n")
             return
@@ -167,16 +166,16 @@ struct T3ConnectLoginStep: FlowStep {
 
         // The CLI reads the code from stdin. If the socket died during the
         // hop, reattach by identity once; the process holds its prompt.
-        var active = session
+        let line = Data((code.trimmingCharacters(in: .whitespacesAndNewlines) + "\n").utf8)
         do {
-            try await active.send(Data((code.trimmingCharacters(in: .whitespacesAndNewlines) + "\n").utf8))
+            try await session.send(line)
         } catch {
             guard let sessionID else {
                 throw FlowError.failed("The connection dropped during sign-in. Retry to start over.")
             }
-            active = try await context.platform.attachExec(on: context.sprite, sessionID: sessionID)
-            reader = ExecEventReader(active)
-            try await active.send(Data((code.trimmingCharacters(in: .whitespacesAndNewlines) + "\n").utf8))
+            let reattached = try await context.platform.attachExec(on: context.sprite, sessionID: sessionID)
+            reader = ExecEventReader(reattached)
+            try await reattached.send(line)
         }
         var exitCode: Int?
         while exitCode == nil {

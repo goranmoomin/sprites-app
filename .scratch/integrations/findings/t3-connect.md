@@ -602,3 +602,18 @@ The two privacy disclosures above belong in the same message.
    `openid profile email`, while Clerk documents `offline_access` as the
    scope that grants one. A 48-char refresh token appeared anyway. Harmless,
    but it means our understanding of Clerk's scope handling is incomplete.
+
+## Implemented (integrations ticket 08, 2026-08-16)
+
+The shipping design above, as `T3ConnectFlow` on the existing T3 Code
+integration: `t3-setup-connect`, first in T3's chooser, reusing the install
+and Service steps of `t3-setup`; a consent naming the tunnel, the account,
+what transits the relay and the per-Sprite cost; `t3 connect login
+--headless` as a non-TTY exec with the code written to stdin (reattach by
+identity once if the socket died during the hop); `t3 connect link`, a
+Service stop/start, and a poll for `cloud-linked-user-id.bin` (default 2s
+interval, 3 minute budget). Managed only. Observation adds one `T3 Connect`
+detail from a single presence exec over the three files: `authorized`,
+`authorized, link pending`, `linked (managed)`. Telemetry untouched, no
+unlink, no logout. Live rig: `InteractiveT3ConnectTests`. The grant-cap
+question was judged not to need a probe (2026-08-16).

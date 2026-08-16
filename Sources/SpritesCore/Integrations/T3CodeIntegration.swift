@@ -41,7 +41,10 @@ public struct T3CodeIntegration: Integration {
         }
         // The installed version is observable, never remembered.
         let version = try? await installedVersion(on: sprite, platform: platform)
-        let details = version.flatMap { $0 }.map { [IntegrationStatus.Detail("Version", $0)] } ?? []
+        var details = version.flatMap { $0 }.map { [IntegrationStatus.Detail("Version", $0)] } ?? []
+        if let connect = await Self.observeConnect(on: sprite, platform: platform) {
+            details.append(connect)
+        }
         if recognized.contains(where: { $0.state?.status == .running }) {
             return IntegrationStatus(summary: "service running", isReady: true, details: details)
         }
@@ -56,13 +59,16 @@ public struct T3CodeIntegration: Integration {
 
     public func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow] {
         var flows: [Flow] = []
+        // The setup alternatives, recommended one first (they are peer
+        // Flows: Flow has no branches).
+        if !status.isReady {
+            flows.append(connectSetupFlow())
+            flows.append(setupFlow())
+        }
         // Pair again is offered whenever a recognized service exists
         // (e.g. after a restore), not only while it is running.
         if services.contains(where: recognizes) {
             flows.append(pairAgainFlow())
-        }
-        if !status.isReady {
-            flows.append(setupFlow())
         }
         return flows
     }

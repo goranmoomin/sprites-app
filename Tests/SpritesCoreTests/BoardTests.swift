@@ -21,6 +21,7 @@ struct BoardTests {
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: Self.sprite)
         await GitHubLoginFlowTests.scriptGh(fake, sprite: Self.sprite)
         await TailscaleLoginFlowTests.scriptTailscale(fake, sprite: Self.sprite)
+        await T3ConnectFlowTests.scriptT3Connect(fake, sprite: Self.sprite)
         await fake.scriptExec(where: { $0.argv.first == "npm" && $0.argv.last == "t3" }) { _, io in
             await fake.setFile(
                 on: Self.sprite, path: "/home/sprite/.local/bin/t3", content: "#!bin")
@@ -38,7 +39,14 @@ struct BoardTests {
             while let prompt = await run.nextPrompt() {
                 switch prompt {
                 case .openURLAndEnterCode(let url, _):
-                    run.respond(.text(url == TailscaleIntegration.adminKeysURL ? TailscaleLoginFlowTests.goodKey : "auth-code-42"))
+                    // Each integration's paste, told apart by the page.
+                    if url == TailscaleIntegration.adminKeysURL {
+                        run.respond(.text(TailscaleLoginFlowTests.goodKey))
+                    } else if url.host() == "app.t3.codes" {
+                        run.respond(.text(T3ConnectFlowTests.goodCode))
+                    } else {
+                        run.respond(.text("auth-code-42"))
+                    }
                 case .openURLAndShowCode: run.respond(.acknowledged)
                 case .consent: run.respond(.approved)
                 case .t3Pairing: run.respond(.acknowledged)
@@ -69,7 +77,7 @@ struct BoardTests {
         // The tile carries what the integration offers, so a tap needs no
         // further observation.
         #expect(rows[0].tiles[0].flows.map(\.id) == ["claude-code-login"])
-        #expect(rows[1].tiles[0].flows.map(\.id) == ["t3-setup"])
+        #expect(rows[1].tiles[0].flows.map(\.id) == ["t3-setup-connect", "t3-setup"])
         #expect(rows[2].tiles.map { $0.flows.map(\.id) } == [["github-login"], ["tailscale-login"]])
     }
 
@@ -103,21 +111,25 @@ struct BoardTests {
         #expect(model.blockedReason(for: t3Setup) == nil)
     }
 
-    @Test func runningEveryOfferedFlowEndsOnAFullySetUpSprite() async throws {
+    @Test func runningEachTilesRecommendedFlowEndsOnAFullySetUpSprite() async throws {
         let fake = await makeCreatedSprite()
         await scriptHappyDialogues(fake)
         let model = await board(fake)
 
-        // Tap through the tiles in Board order.
+        // Tap through the tiles in Board order, taking each tile's first
+        // (recommended) Flow: T3's is Connect, which needs a poll interval
+        // the test can afford.
         for row in model.board ?? [] {
             for tile in row.tiles {
-                for flow in tile.flows {
-                    let run = FlowRun(flow: flow, platform: fake, sprite: Self.sprite)
-                    let responder = autoRespond(run)
-                    await run.start()
-                    await responder.value
-                    #expect(run.phase == .succeeded, "\(flow.id)")
+                guard var flow = tile.flows.first else { continue }
+                if flow.id == "t3-setup-connect" {
+                    flow = Integrations.t3Code.connectSetupFlow(linkPollInterval: .milliseconds(20))
                 }
+                let run = FlowRun(flow: flow, platform: fake, sprite: Self.sprite)
+                let responder = autoRespond(run)
+                await run.start()
+                await responder.value
+                #expect(run.phase == .succeeded, "\(flow.id)")
             }
         }
 
@@ -137,7 +149,7 @@ struct BoardTests {
         await detail.refresh()
         #expect(detail.integrationLines?.isEmpty == false)
         #expect(detail.integrationLines?.allSatisfy { !$0.isReady } == true)
-        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup", "github-login", "tailscale-login"])
+        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup-connect", "t3-setup", "github-login", "tailscale-login"])
     }
 
     @Test func interruptionAfterOneFlowLeavesAConsistentObservableSprite() async throws {

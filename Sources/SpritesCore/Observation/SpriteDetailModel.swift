@@ -28,6 +28,7 @@ public final class SpriteDetailModel {
         public var title: String
         public var summary: String
         public var isReady: Bool
+        public var details: [IntegrationStatus.Detail]
     }
 
     private let platform: SpritesPlatform
@@ -292,7 +293,7 @@ public final class SpriteDetailModel {
                 on: sprite, services: services, platform: platform)
             lines.append(IntegrationStatusLine(
                 id: integration.id, title: integration.displayName,
-                summary: status.summary, isReady: status.isReady))
+                summary: status.summary, isReady: status.isReady, details: status.details))
             actions.append(contentsOf: integration.actions(services: services, metadata: metadata))
             flows.append(contentsOf: integration.flows(
                 status: status, services: services, metadata: metadata))

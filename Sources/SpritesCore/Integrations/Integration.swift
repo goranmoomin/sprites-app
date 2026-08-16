@@ -32,14 +32,30 @@ public struct Requirement: Sendable, Equatable {
 
 /// One integration's observed status on one Sprite (never app-side memory).
 public struct IntegrationStatus: Sendable, Equatable {
-    /// Status line detail, e.g. "logged in", "service running", "not set up".
+    /// One observed fact worth showing under the summary (account, version,
+    /// address); every value is copyable in the UI.
+    public struct Detail: Sendable, Equatable, Identifiable {
+        public var label: String
+        public var value: String
+        public var id: String { label }
+
+        public init(_ label: String, _ value: String) {
+            self.label = label
+            self.value = value
+        }
+    }
+
+    /// Status line, e.g. "logged in", "service running", "not set up".
     public var summary: String
     /// Whether the integration is usable (logged in / service running).
     public var isReady: Bool
+    /// Ordered as the integration wants them shown.
+    public var details: [Detail]
 
-    public init(summary: String, isReady: Bool) {
+    public init(summary: String, isReady: Bool, details: [Detail] = []) {
         self.summary = summary
         self.isReady = isReady
+        self.details = details
     }
 }
 

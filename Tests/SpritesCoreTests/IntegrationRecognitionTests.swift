@@ -25,6 +25,8 @@ struct IntegrationRecognitionTests {
 
         let t3Line = model.integrationLines?.first { $0.title == "T3 Code" }
         #expect(t3Line?.summary == "service running")
+        // No package.json on this sprite: nothing to show, nothing invented.
+        #expect(t3Line?.details == [])
         // One uniform list: the integration's handoff plus the app's own
         // Run command contribution.
         #expect(model.actions == [
@@ -96,6 +98,24 @@ struct IntegrationRecognitionTests {
                            content: #"{"env": {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-PLANTED"}}"#)
         await model.refresh()
         #expect(model.integrationLines?.first { $0.title == "Claude Code" }?.summary == "logged in")
+    }
+
+    @Test func t3InstalledVersionIsADetailNotPartOfTheSummary() async throws {
+        let fake = await makeFake()
+        await fake.setService(
+            on: "morning-cherry-1234",
+            Service(name: "t3", cmd: "/home/sprite/.local/bin/t3", args: ["serve"],
+                    state: ServiceState(status: .stopped, pid: nil)))
+        await fake.setFile(
+            on: "morning-cherry-1234", path: T3CodeIntegration.packageJSONPath,
+            content: #"{"name":"t3","version":"0.0.31"}"#)
+        let model = SpriteDetailModel(platform: fake, sprite: "morning-cherry-1234")
+
+        await model.refresh()
+
+        let t3Line = model.integrationLines?.first { $0.title == "T3 Code" }
+        #expect(t3Line?.summary == "service stopped")
+        #expect(t3Line?.details == [IntegrationStatus.Detail("Version", "0.0.31")])
     }
 
     @Test func t3SetupRequiresASupportedCodingAgentByName() {

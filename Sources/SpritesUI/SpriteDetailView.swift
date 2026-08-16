@@ -153,6 +153,9 @@ public struct SpriteDetailView: View {
                                 .foregroundStyle(line.isReady ? Color.green : Color.secondary)
                         }
                     }
+                    ForEach(line.details) { detail in
+                        IntegrationDetailRow(detail: detail)
+                    }
                 }
                 ForEach(model.offeredFlows ?? [], id: \.id) { flow in
                     Button(flow.title) {

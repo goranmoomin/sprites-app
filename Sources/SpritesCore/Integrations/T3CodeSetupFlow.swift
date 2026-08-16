@@ -19,8 +19,8 @@ extension T3CodeIntegration {
         Flow(
             id: "t3-setup",
             title: "Set up T3 Code",
+            requires: [T3CodeIntegration.supportedCodingAgents],
             steps: [
-                RequireCodingAgentStep(),
                 InstallT3Step(),
                 DefineT3ServiceStep(),
                 PublicURLConsentStep(),
@@ -40,23 +40,6 @@ extension T3CodeIntegration {
             let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
         else { return nil }
         return object["version"] as? String
-    }
-}
-
-/// T3 requires at least one logged-in coding agent (declared dependency).
-struct RequireCodingAgentStep: FlowStep {
-    let id = "t3-require-coding-agent"
-    let title = "Check coding agent login"
-
-    func run(in context: FlowContext) async throws {
-        guard
-            let ready = await Integrations.readyProvider(
-                of: .codingAgent, on: context.sprite, services: [], platform: context.platform)
-        else {
-            throw FlowError.failed(
-                "No coding agent is logged in on this sprite. Run the Claude Code login Flow first.")
-        }
-        context.output("\(ready.integration.displayName): \(ready.status.summary)\n")
     }
 }
 

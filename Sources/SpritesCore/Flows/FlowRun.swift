@@ -13,6 +13,8 @@ public final class FlowRun {
         case failed
         case cancelled
         case succeeded
+        /// A Requirement is unmet; `blockedReason` names the products.
+        case blocked
     }
 
     public let flow: Flow
@@ -22,16 +24,22 @@ public final class FlowRun {
     /// Raw CLI output of the current/failed step.
     public private(set) var transcript = ""
     public private(set) var failureMessage: String?
+    public private(set) var blockedReason: String?
 
     private let platform: SpritesPlatform
     private let sprite: String
+    private let integrations: [any Integration]
     private var responseContinuation: CheckedContinuation<FlowResponse, Never>?
     private var promptWaiters: [CheckedContinuation<FlowPrompt?, Never>] = []
 
-    public init(flow: Flow, platform: SpritesPlatform, sprite: String) {
+    public init(
+        flow: Flow, platform: SpritesPlatform, sprite: String,
+        integrations: [any Integration] = Integrations.all
+    ) {
         self.flow = flow
         self.platform = platform
         self.sprite = sprite
+        self.integrations = integrations
     }
 
     public var currentStep: (any FlowStep)? {
@@ -39,7 +47,7 @@ public final class FlowRun {
     }
 
     public var isFinished: Bool {
-        phase == .succeeded || phase == .failed || phase == .cancelled
+        phase == .succeeded || phase == .failed || phase == .cancelled || phase == .blocked
     }
 
     public func start() async {
@@ -47,11 +55,19 @@ public final class FlowRun {
         await run(from: 0)
     }
 
-    /// Re-runs the failed step (and the rest of the flow) after a derail.
+    /// Re-runs the failed step (and the rest of the flow) after a derail,
+    /// or re-checks the Requirements after a block.
     public func retry() async {
-        guard phase == .failed else { return }
-        failureMessage = nil
-        await run(from: currentStepIndex)
+        switch phase {
+        case .failed:
+            failureMessage = nil
+            await run(from: currentStepIndex)
+        case .blocked:
+            blockedReason = nil
+            await run(from: 0)
+        default:
+            return
+        }
     }
 
     /// Answers the currently displayed prompt. Clears the prompt right away
@@ -74,6 +90,17 @@ public final class FlowRun {
 
     private func run(from index: Int) async {
         phase = .running
+        // Requirements gate the first step only (ADR 0008); a retry after a
+        // derail resumes past them.
+        if index == 0,
+            let reason = await Integrations.unmetRequirementReason(
+                of: flow, on: sprite, platform: platform, among: integrations)
+        {
+            blockedReason = reason
+            phase = .blocked
+            resolvePromptWaiters()
+            return
+        }
         let context = FlowContext(
             platform: platform,
             sprite: sprite,

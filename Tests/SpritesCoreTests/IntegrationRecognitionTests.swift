@@ -98,10 +98,12 @@ struct IntegrationRecognitionTests {
         #expect(model.integrationLines?.first { $0.title == "Claude Code" }?.summary == "logged in")
     }
 
-    @Test func t3DeclaresItsCodingAgentDependency() {
+    @Test func t3SetupRequiresASupportedCodingAgentByName() {
         let t3 = Integrations.t3Code
-        #expect(t3.provides.contains(.controlPlane))
-        #expect(t3.requires.contains(.codingAgent))
-        #expect(Integrations.claudeCode.provides.contains(.codingAgent))
+        #expect(t3.category == .controlPlane)
+        #expect(Integrations.claudeCode.category == .codingAgent)
+        #expect(t3.setupFlow().requires == [T3CodeIntegration.supportedCodingAgents])
+        #expect(T3CodeIntegration.supportedCodingAgents.anyOf == [Integrations.claudeCode.id])
+        #expect(t3.pairAgainFlow().requires.isEmpty)
     }
 }

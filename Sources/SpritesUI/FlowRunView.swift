@@ -67,7 +67,7 @@ struct FlowRunView: View {
             switch run.phase {
             case .failed:
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-            case .cancelled:
+            case .cancelled, .blocked:
                 Image(systemName: "minus.circle").foregroundStyle(.secondary)
             default:
                 ProgressView().controlSize(.small)
@@ -110,6 +110,15 @@ struct FlowRunView: View {
             Section {
                 Text("Stopped. Nothing was changed beyond completed steps.")
                     .foregroundStyle(.secondary)
+            }
+        case .blocked:
+            Section("Not yet") {
+                if let reason = run.blockedReason {
+                    Text(reason)
+                }
+                Button("Check again") {
+                    Task { await run.retry() }
+                }
             }
         case .idle, .running:
             EmptyView()

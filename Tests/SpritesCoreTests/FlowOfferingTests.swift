@@ -65,8 +65,7 @@ struct FlowOfferingTests {
 private struct FakeIntegration: Integration {
     let id = "fake"
     let displayName = "Fake"
-    let provides: [Capability] = []
-    let requires: [Capability] = []
+    let category = Category.other
 
     func recognizes(_ service: Service) -> Bool { false }
 

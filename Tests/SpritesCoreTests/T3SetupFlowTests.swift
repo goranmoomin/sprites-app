@@ -41,15 +41,32 @@ struct T3SetupFlowTests {
         }
     }
 
-    @Test func setupRequiresALoggedInCodingAgent() async throws {
+    @Test func setupIsBlockedUntilASupportedCodingAgentIsReady() async throws {
         let fake = await makeFake(claudeLoggedIn: false)
         let run = FlowRun(flow: Integrations.t3Code.setupFlow(), platform: fake, sprite: Self.sprite)
 
         await run.start()
 
-        #expect(run.phase == .failed)
-        #expect(run.failureMessage?.contains("coding agent") == true)
+        #expect(run.phase == .blocked)
+        #expect(run.isFinished)
+        #expect(run.blockedReason == "This needs Claude Code ready on this sprite. Run its Flow first.")
+        #expect(run.currentStepIndex == 0)
         #expect(try await fake.services(on: Self.sprite).isEmpty)
+
+        // Retry re-checks the Requirements instead of resuming past them.
+        await ClaudeCodeLoginFlowTests.plantLoggedIn(fake, sprite: Self.sprite)
+        await scriptT3CLI(fake, installCount: Counter())
+        let watcher = Task {
+            while let prompt = await run.nextPrompt() {
+                switch prompt {
+                case .consent: run.respond(.approved)
+                default: run.respond(.acknowledged)
+                }
+            }
+        }
+        await run.retry()
+        await watcher.value
+        #expect(run.phase == .succeeded)
     }
 
     @Test func setupInstallsOnceDefinesServiceGatesConsentAndPairs() async throws {

@@ -5,8 +5,7 @@ import Foundation
 public struct ClaudeCodeIntegration: Integration {
     public let id = "claude-code"
     public let displayName = "Claude Code"
-    public let provides: [Capability] = [.codingAgent]
-    public let requires: [Capability] = []
+    public let category = Category.codingAgent
 
     /// The legacy credential store `claude auth login` used to write; the
     /// setup-token login never creates it.

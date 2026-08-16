@@ -1,19 +1,32 @@
 import Foundation
 
-/// Integration category from CONTEXT.md, expressed as a capability an
-/// integration provides on a Sprite or requires from other integrations.
-public enum Capability: Sendable, Equatable {
-    /// Manages an Agent's login on a Sprite (Claude Code, Codex, Gemini CLI).
+/// The Board row an Integration declares itself into (CONTEXT.md
+/// Category). Grouping only; carries no requirement semantics.
+public enum Category: Sendable, Equatable, CaseIterable {
+    /// Manages an Agent's login (Claude Code, Codex, Gemini CLI).
     case codingAgent
     /// Runs a Service exposing the Sprite to a client app (T3 Code).
     case controlPlane
+    case other
 
-    /// Human-readable category name, e.g. in blocked-entry explanations.
+    /// Board row title.
     public var displayName: String {
         switch self {
-        case .codingAgent: "coding agent"
-        case .controlPlane: "control plane"
+        case .codingAgent: "Coding agents"
+        case .controlPlane: "Control planes"
+        case .other: "Other"
         }
+    }
+}
+
+/// What a Flow needs on the Sprite before it runs (CONTEXT.md
+/// Requirement): a set of Integration ids, any one observed ready
+/// satisfies it. A Flow needs all of its Requirements (ADR 0008).
+public struct Requirement: Sendable, Equatable {
+    public let anyOf: [String]
+
+    public init(anyOf: [String]) {
+        self.anyOf = anyOf
     }
 }
 
@@ -36,8 +49,7 @@ public struct IntegrationStatus: Sendable, Equatable {
 public protocol Integration: Sendable {
     var id: String { get }
     var displayName: String { get }
-    var provides: [Capability] { get }
-    var requires: [Capability] { get }
+    var category: Category { get }
 
     /// Command-match recognizer. Service names are ignored.
     func recognizes(_ service: Service) -> Bool
@@ -55,26 +67,46 @@ public protocol Integration: Sendable {
     func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow]
 }
 
-/// The MVP registry: exactly two integrations.
+/// The registry.
 public enum Integrations {
     public static let claudeCode = ClaudeCodeIntegration()
     public static let t3Code = T3CodeIntegration()
     public static var all: [any Integration] { [claudeCode, t3Code] }
 
-    /// The one place capability satisfaction is computed: a required
-    /// capability is met when some integration providing it is observed
-    /// ready on the sprite (deep observation, never app-side memory).
+    /// The one place Requirement satisfaction is computed: the first of the
+    /// named integrations observed ready on the sprite (deep observation,
+    /// never app-side memory), or nil when none is.
     public static func readyProvider(
-        of capability: Capability, on sprite: String, services: [Service],
+        among ids: [String], on sprite: String, services: [Service],
         platform: SpritesPlatform, among integrations: [any Integration] = Integrations.all
     ) async -> (integration: any Integration, status: IntegrationStatus)? {
-        for integration in integrations where integration.provides.contains(capability) {
+        for integration in integrations where ids.contains(integration.id) {
             guard
                 let status = try? await integration.observeStatus(
                     on: sprite, services: services, platform: platform),
                 status.isReady
             else { continue }
             return (integration, status)
+        }
+        return nil
+    }
+
+    /// The blocked sentence for the first unmet Requirement of a flow, or
+    /// nil when every Requirement is met. Names products, never categories.
+    public static func unmetRequirementReason(
+        of flow: Flow, on sprite: String, platform: SpritesPlatform,
+        among integrations: [any Integration] = Integrations.all
+    ) async -> String? {
+        for requirement in flow.requires {
+            let met = await readyProvider(
+                among: requirement.anyOf, on: sprite, services: [], platform: platform,
+                among: integrations) != nil
+            guard !met else { continue }
+            let names = requirement.anyOf.compactMap { id in
+                integrations.first { $0.id == id }?.displayName
+            }
+            return "This needs \(names.joined(separator: " or ")) ready on this sprite. "
+                + "Run its Flow first."
         }
         return nil
     }

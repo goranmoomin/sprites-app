@@ -6,11 +6,14 @@ import Foundation
 public struct Flow: Sendable, Identifiable {
     public let id: String
     public let title: String
+    /// All must be met before the first step runs; checked once by FlowRun.
+    public let requires: [Requirement]
     public let steps: [any FlowStep]
 
-    public init(id: String, title: String, steps: [any FlowStep]) {
+    public init(id: String, title: String, requires: [Requirement] = [], steps: [any FlowStep]) {
         self.id = id
         self.title = title
+        self.requires = requires
         self.steps = steps
     }
 }

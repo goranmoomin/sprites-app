@@ -5,8 +5,11 @@ import Foundation
 public struct T3CodeIntegration: Integration {
     public let id = "t3-code"
     public let displayName = "T3 Code"
-    public let provides: [Capability] = [.controlPlane]
-    public let requires: [Capability] = [.codingAgent]
+    public let category = Category.controlPlane
+
+    /// The coding agents T3 Code drives; every setup Flow requires one
+    /// logged in.
+    public static let supportedCodingAgents = Requirement(anyOf: [Integrations.claudeCode.id])
 
     /// The official T3 Code app's URL scheme for the handoff (verified
     /// against the t3code mobile source: scheme `t3code`, prod variant).

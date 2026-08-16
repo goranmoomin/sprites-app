@@ -67,15 +67,11 @@ public final class CreateSpritePlaylist {
     /// unmet. The returned run is driven by the caller (the flow UI).
     public func startEntry(_ id: String) async -> FlowRun? {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return nil }
-        for capability in entries[index].integration.requires {
-            let satisfied = await Integrations.readyProvider(
-                of: capability, on: sprite, services: [], platform: platform) != nil
-            guard satisfied else {
-                entries[index].status = .blocked(
-                    "This needs a ready \(capability.displayName) on the sprite. "
-                        + "Run the \(capability.displayName) entry first, or skip for now.")
-                return nil
-            }
+        if let reason = await Integrations.unmetRequirementReason(
+            of: entries[index].flow, on: sprite, platform: platform)
+        {
+            entries[index].status = .blocked(reason)
+            return nil
         }
         entries[index].status = .running
         let run = FlowRun(flow: entries[index].flow, platform: platform, sprite: sprite)
@@ -108,8 +104,8 @@ public final class CreateSpritePlaylist {
     /// The entry that satisfies a blocked entry's dependency, if any.
     public func prerequisiteEntryID(for id: String) -> String? {
         guard let entry = entries.first(where: { $0.id == id }) else { return nil }
-        for capability in entry.integration.requires {
-            if let provider = entries.first(where: { $0.integration.provides.contains(capability) }) {
+        for requirement in entry.flow.requires {
+            if let provider = entries.first(where: { requirement.anyOf.contains($0.integration.id) }) {
                 return provider.id
             }
         }

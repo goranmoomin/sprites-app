@@ -126,7 +126,7 @@ struct CreateSpritePlaylistTests {
             Issue.record("expected blocked, got \(playlist.entries[1].status)")
             return
         }
-        #expect(reason.contains("coding agent"))
+        #expect(reason.contains("Claude Code"))
         #expect(playlist.prerequisiteEntryID(for: t3ID) == playlist.entries[0].id)
     }
 

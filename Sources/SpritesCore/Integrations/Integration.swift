@@ -98,7 +98,8 @@ public enum Integrations {
     public static let claudeCode = ClaudeCodeIntegration()
     public static let t3Code = T3CodeIntegration()
     public static let github = GitHubIntegration()
-    public static var all: [any Integration] { [claudeCode, t3Code, github] }
+    public static let tailscale = TailscaleIntegration()
+    public static var all: [any Integration] { [claudeCode, t3Code, github, tailscale] }
 
     /// The one place Requirement satisfaction is computed: the first of the
     /// named integrations observed ready on the sprite (deep observation,

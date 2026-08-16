@@ -20,6 +20,7 @@ struct BoardTests {
     private func scriptHappyDialogues(_ fake: FakeSpritesPlatform) async {
         await ClaudeCodeLoginFlowTests.scriptHappySetupToken(fake, sprite: Self.sprite)
         await GitHubLoginFlowTests.scriptGh(fake, sprite: Self.sprite)
+        await TailscaleLoginFlowTests.scriptTailscale(fake, sprite: Self.sprite)
         await fake.scriptExec(where: { $0.argv.first == "npm" && $0.argv.last == "t3" }) { _, io in
             await fake.setFile(
                 on: Self.sprite, path: "/home/sprite/.local/bin/t3", content: "#!bin")
@@ -36,7 +37,8 @@ struct BoardTests {
         Task {
             while let prompt = await run.nextPrompt() {
                 switch prompt {
-                case .openURLAndEnterCode: run.respond(.text("auth-code-42"))
+                case .openURLAndEnterCode(let url, _):
+                    run.respond(.text(url == TailscaleIntegration.adminKeysURL ? TailscaleLoginFlowTests.goodKey : "auth-code-42"))
                 case .openURLAndShowCode: run.respond(.acknowledged)
                 case .consent: run.respond(.approved)
                 case .t3Pairing: run.respond(.acknowledged)
@@ -62,13 +64,13 @@ struct BoardTests {
 
         let rows = try #require(model.board)
         #expect(rows.map(\.category) == [.codingAgent, .controlPlane, .other])
-        #expect(rows.map { $0.tiles.map(\.id) } == [["claude-code"], ["t3-code"], ["github"]])
+        #expect(rows.map { $0.tiles.map(\.id) } == [["claude-code"], ["t3-code"], ["github", "tailscale"]])
         #expect(rows.flatMap(\.tiles).allSatisfy { !$0.status.isReady })
         // The tile carries what the integration offers, so a tap needs no
         // further observation.
         #expect(rows[0].tiles[0].flows.map(\.id) == ["claude-code-login"])
         #expect(rows[1].tiles[0].flows.map(\.id) == ["t3-setup"])
-        #expect(rows[2].tiles[0].flows.map(\.id) == ["github-login"])
+        #expect(rows[2].tiles.map { $0.flows.map(\.id) } == [["github-login"], ["tailscale-login"]])
     }
 
     @Test func emptyCategoriesHaveNoRow() async throws {
@@ -135,7 +137,7 @@ struct BoardTests {
         await detail.refresh()
         #expect(detail.integrationLines?.isEmpty == false)
         #expect(detail.integrationLines?.allSatisfy { !$0.isReady } == true)
-        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup", "github-login"])
+        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup", "github-login", "tailscale-login"])
     }
 
     @Test func interruptionAfterOneFlowLeavesAConsistentObservableSprite() async throws {

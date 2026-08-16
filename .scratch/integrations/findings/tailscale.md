@@ -472,3 +472,28 @@ existing open-URL one.
    provisioning time behind enabling Serve; the verbatim failure wordings
    for revoked, expired and exhausted keys; and the checkpoint stale-node
    hazard in practice.
+
+## Implemented (integrations ticket 07, 2026-08-16)
+
+Decision reversed from the 2026-08-12 one above (grilled 2026-08-16): the
+interactive per-Sprite login is not built. `TailscaleIntegration` plus
+`TailscaleLoginFlow` join with a reusable, non-ephemeral auth key pasted
+once through the existing `.openURLAndEnterCode` prompt on the admin keys
+page, saved with consent as `SavedTailscaleLogin`, and planted on every
+Sprite with `tailscale up --json --auth-key=file:<600 file, removed after>
+--hostname=<sprite> --timeout=60s`: the same complete flag set every run,
+never `--reset`; the complete-set-of-flags error surfaces verbatim
+(anchored on "requires mentioning all", which the CLI wraps across two
+lines). Install is the pinned static tarball into `~/.local/bin` resolved
+from the stable JSON index at flow time; `tailscaled` is a Service with no
+args and the default socket. Observation costs no exec until the Service
+runs, then one `status --json`, parsed never by exit code, with MagicDNS
+name, tailnet, CGNAT addresses and Service state as details.
+
+Any `up` failure other than the flag-set error or a daemon that is not
+answering reads as a rejected key: a saved one is forgotten and re-pasted.
+The exact expired/revoked wording is still unmeasured; the live rig
+`InteractiveTailscaleTests` records it when run with
+`SPRITES_LIVE_TAILSCALE_BADKEY=1`. Ephemeral keys are wrong for Sprites
+that go cold; the OAuth client (`tskey-client-`, `?ephemeral=false`) is the
+recorded upgrade and is not built.

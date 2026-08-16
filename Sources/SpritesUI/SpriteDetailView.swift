@@ -281,9 +281,13 @@ public struct SpriteDetailView: View {
                                     checkpointToRestore = checkpoint.id
                                 }
                                 .tint(.orange)
-                                Button("Delete", role: .destructive) {
+                                // Not role: .destructive: that plays the
+                                // row-removal animation on tap, before the
+                                // confirmation is even answered.
+                                Button("Delete") {
                                     checkpointToDelete = checkpoint.id
                                 }
+                                .tint(.red)
                             }
                         }
                 }

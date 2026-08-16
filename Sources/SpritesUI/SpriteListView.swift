@@ -62,9 +62,13 @@ public struct SpriteListView: View {
                             .rowAnchor(sprite.name)
                             .swipeActions {
                                 if !isDeleting {
-                                    Button("Delete", role: .destructive) {
+                                    // Not role: .destructive: that plays the
+                                    // row-removal animation on tap, before the
+                                    // confirmation is even answered.
+                                    Button("Delete") {
                                         spriteToDelete = sprite.name
                                     }
+                                    .tint(.red)
                                 }
                             }
                     }

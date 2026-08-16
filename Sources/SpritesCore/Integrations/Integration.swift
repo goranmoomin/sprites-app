@@ -125,9 +125,13 @@ public enum Integrations {
         of flow: Flow, on sprite: String, platform: SpritesPlatform,
         among integrations: [any Integration] = Integrations.all
     ) async -> String? {
+        guard !flow.requires.isEmpty else { return nil }
+        // Providers observe against the sprite's Services (a daemon is a
+        // Service), so they are read once here.
+        let services = (try? await platform.services(on: sprite)) ?? []
         for requirement in flow.requires {
             let met = await readyProvider(
-                among: requirement.anyOf, on: sprite, services: [], platform: platform,
+                among: requirement.anyOf, on: sprite, services: services, platform: platform,
                 among: integrations) != nil
             guard !met else { continue }
             return blockedSentence(for: requirement, among: integrations)

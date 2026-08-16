@@ -104,10 +104,7 @@ struct GitHubLoginStep: FlowStep {
     let title = "Log in to GitHub"
     let store: any SavedLoginStore
 
-    static let mintArgv = [
-        "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web",
-        "--scopes", "workflow",
-    ]
+    static let mintArgv = GitHubIntegration.loginArgv
     /// The session list reports resolved path + args (observed live), so
     /// stale-login matching is by this suffix, never argv[0].
     static var mintCommandSuffix: String { mintArgv.joined(separator: " ") }

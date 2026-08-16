@@ -47,7 +47,7 @@ struct BoardTests {
                     } else {
                         run.respond(.text("auth-code-42"))
                     }
-                case .openURLAndShowCode: run.respond(.acknowledged)
+                case .openURLAndShowCode, .openURL: run.respond(.acknowledged)
                 case .consent: run.respond(.approved)
                 case .t3Pairing: run.respond(.acknowledged)
                 case .claudeMintedToken: run.respond(.acknowledged)
@@ -77,7 +77,7 @@ struct BoardTests {
         // The tile carries what the integration offers, so a tap needs no
         // further observation.
         #expect(rows[0].tiles[0].flows.map(\.id) == ["claude-code-login"])
-        #expect(rows[1].tiles[0].flows.map(\.id) == ["t3-setup-connect", "t3-setup"])
+        #expect(rows[1].tiles[0].flows.map(\.id) == ["t3-setup-connect", "t3-setup", "t3-setup-tailscale"])
         #expect(rows[2].tiles.map { $0.flows.map(\.id) } == [["github-login"], ["tailscale-login"]])
     }
 
@@ -149,7 +149,7 @@ struct BoardTests {
         await detail.refresh()
         #expect(detail.integrationLines?.isEmpty == false)
         #expect(detail.integrationLines?.allSatisfy { !$0.isReady } == true)
-        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup-connect", "t3-setup", "github-login", "tailscale-login"])
+        #expect(detail.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup-connect", "t3-setup", "t3-setup-tailscale", "github-login", "tailscale-login"])
     }
 
     @Test func interruptionAfterOneFlowLeavesAConsistentObservableSprite() async throws {

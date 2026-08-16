@@ -35,6 +35,10 @@ public enum FlowPrompt: Sendable, Equatable {
     /// copyable, for the user to type into that page (gh's device flow).
     /// The step keeps running underneath while this shows.
     case openURLAndShowCode(url: URL, code: String, instructions: String)
+    /// Open a page, do something there, come back: an external
+    /// precondition fixed in a web console (enable Serve or MagicDNS on a
+    /// tailnet). The step re-checks on acknowledge.
+    case openURL(url: URL, instructions: String)
     /// An explicit consent gate (e.g. making the sprite URL public).
     case consent(title: String, message: String, approveTitle: String)
     /// Show the T3 Pairing credential (defined with the T3 integration).

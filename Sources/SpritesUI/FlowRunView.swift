@@ -163,6 +163,15 @@ struct FlowPromptView: View {
                 Button(approveTitle) { respond(.approved) }
                 Button("Not now", role: .cancel) { respond(.declined) }
             }
+        case .openURL(let url, let instructions):
+            Section("One thing to do first") {
+                Text(instructions)
+                Link(destination: url) {
+                    Label("Open \(url.host() ?? "the page")", systemImage: "safari")
+                }
+                Button("Done, check again") { respond(.acknowledged) }
+                Button("Cancel", role: .cancel) { respond(.declined) }
+            }
         case .openURLAndShowCode(let url, let code, let instructions):
             Section("Sign in") {
                 Text(instructions)

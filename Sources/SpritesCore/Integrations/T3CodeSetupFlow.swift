@@ -149,20 +149,43 @@ public struct T3Pairing: Sendable, Equatable {
 /// pairing URL carries a local IP, so this asks the CLI for one on the
 /// public host instead.
 struct CreatePairingStep: FlowStep {
+    /// Where the T3 Code app will reach the Sprite: its public URL, or its
+    /// MagicDNS name over the tailnet.
+    enum Host: Sendable {
+        case spriteURL
+        case magicDNS
+    }
+
     let id = "t3-create-pairing"
     let title = "Pair with the T3 Code app"
+    var host = Host.spriteURL
 
     func run(in context: FlowContext) async throws {
-        let metadata = try await context.platform.getSprite(named: context.sprite)
-        guard let url = metadata.url, let host = url.host() else {
-            throw FlowError.failed("The sprite has no URL to pair against.")
-        }
+        let host = try await resolveHost(in: context)
         // Pairings are single-use with a short TTL, so the screen can ask
         // for a fresh one in place.
         while true {
             let pairing = try await Self.createPairing(in: context, host: host)
             let response = await context.prompt(.t3Pairing(pairing))
             guard response == .reissue else { return }
+        }
+    }
+
+    private func resolveHost(in context: FlowContext) async throws -> String {
+        switch host {
+        case .spriteURL:
+            let metadata = try await context.platform.getSprite(named: context.sprite)
+            guard let url = metadata.url, let host = url.host() else {
+                throw FlowError.failed("The sprite has no URL to pair against.")
+            }
+            return host
+        case .magicDNS:
+            let status = try await context.platform.runCapturing(
+                on: context.sprite, [TailscaleIntegration.tailscalePath, "status", "--json"])
+            guard let name = TailscaleStatus.parse(status.stdout)?.magicDNSName else {
+                throw FlowError.failed("Tailscale reports no MagicDNS name for this sprite yet.")
+            }
+            return name
         }
     }
 

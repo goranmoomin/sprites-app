@@ -64,6 +64,7 @@ public struct T3CodeIntegration: Integration {
         if !status.isReady {
             flows.append(connectSetupFlow())
             flows.append(setupFlow())
+            flows.append(tailnetSetupFlow())
         }
         // Pair again is offered whenever a recognized service exists
         // (e.g. after a restore), not only while it is running.

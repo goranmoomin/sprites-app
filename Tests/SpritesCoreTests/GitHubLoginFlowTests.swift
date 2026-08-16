@@ -302,7 +302,7 @@ struct GitHubLoginFlowTests {
         // the approval delay, but a zombie is killed before that.
         let zombie = try await fake.exec(
             on: Self.sprite,
-            command: ExecCommand(GitHubLoginStepProbe.mintArgv, env: ["GH_NO_UPDATE_NOTIFIER": "1"]))
+            command: ExecCommand(GitHubIntegration.loginArgv, env: ["GH_NO_UPDATE_NOTIFIER": "1"]))
         let zombieID = await zombie.sessionID
         await zombie.cancel()
         let bystander = try await fake.exec(on: Self.sprite, command: ExecCommand(["sleep", "600"], tty: true))
@@ -341,12 +341,4 @@ struct GitHubLoginFlowTests {
         #expect(GitHubHostsFile.parse(GitHubHostsFile.render(login: "octo", token: "gho_x"))
             == GitHubHostsFile.Contents(user: "octo"))
     }
-}
-
-/// The login step's argv, for tests that pre-create a stale session.
-enum GitHubLoginStepProbe {
-    static let mintArgv = [
-        "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web",
-        "--scopes", "workflow",
-    ]
 }

@@ -26,7 +26,7 @@ struct FlowOfferingTests {
 
         await model.refresh()
 
-        #expect(model.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup-connect", "t3-setup", "github-login", "tailscale-login"])
+        #expect(model.offeredFlows?.map(\.id) == ["claude-code-login", "t3-setup-connect", "t3-setup", "t3-setup-tailscale", "github-login", "tailscale-login"])
     }
 
     @Test func fullySetUpSpriteOffersOnlyPairAgain() async throws {
@@ -48,7 +48,7 @@ struct FlowOfferingTests {
 
         await model.refresh()
 
-        #expect(model.offeredFlows?.map(\.id) == ["t3-setup-connect", "t3-setup", "t3-pair-again", "github-login", "tailscale-login"])
+        #expect(model.offeredFlows?.map(\.id) == ["t3-setup-connect", "t3-setup", "t3-setup-tailscale", "t3-pair-again", "github-login", "tailscale-login"])
     }
 
     @Test func injectedFakeIntegrationsFlowsAppear() async throws {

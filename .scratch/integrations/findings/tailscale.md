@@ -497,3 +497,17 @@ The exact expired/revoked wording is still unmeasured; the live rig
 `SPRITES_LIVE_TAILSCALE_BADKEY=1`. Ephemeral keys are wrong for Sprites
 that go cold; the OAuth client (`tskey-client-`, `?ephemeral=false`) is the
 recorded upgrade and is not built.
+
+## T3 pairing over the tailnet (integrations ticket 09, 2026-08-16)
+
+`t3-setup-tailscale` on the T3 Code integration, requiring the supported
+coding agents and Tailscale by id (`Requirement.tailscale`). After the
+shared prefix, `TailnetServeStep` reads MagicDNS from `status --json` and
+tries `timeout 20 tailscale serve --bg --https=443 http://127.0.0.1:3773`;
+each precondition that fails is an `.openURL` prompt (the DNS settings
+page; the enable URL the CLI prints, anchored on "Serve is not enabled")
+that re-checks on acknowledge. Then the Pairing is created against
+`https://<MagicDNS name>` with no public-URL consent. The certificate
+warm-up is a best-effort `curl` loop, 6 tries 5 s apart, provisional until
+`InteractiveT3TailnetTests` has run once on a Serve-enabled tailnet; a slow
+certificate is a note in the transcript, not a failure.

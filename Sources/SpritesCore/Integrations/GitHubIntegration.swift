@@ -20,6 +20,11 @@ public struct GitHubIntegration: Integration {
     /// The default device-flow scopes plus `workflow`, without which pushing
     /// a commit that touches `.github/workflows/` is rejected server-side.
     public static let scopes = ["repo", "read:org", "gist", "workflow"]
+    /// The device-flow mint, exactly as exec'd (non-TTY, stdin closed).
+    public static let loginArgv = [
+        "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web",
+        "--scopes", "workflow",
+    ]
 
     /// The app-side saved login the branching login Flow reuses.
     public let loginStore: any SavedLoginStore

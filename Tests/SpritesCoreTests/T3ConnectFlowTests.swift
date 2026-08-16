@@ -200,8 +200,8 @@ struct T3ConnectFlowTests {
         let model = SpriteDetailModel(platform: fake, sprite: Self.sprite)
         await model.refresh()
         let t3 = model.board?.flatMap(\.tiles).first { $0.id == "t3-code" }
-        #expect(t3?.flows.map(\.id) == ["t3-setup-connect", "t3-setup"])
-        #expect(t3?.flows.map(\.requires) == [[T3CodeIntegration.supportedCodingAgents], [T3CodeIntegration.supportedCodingAgents]])
+        #expect(t3?.flows.map(\.id) == ["t3-setup-connect", "t3-setup", "t3-setup-tailscale"])
+        #expect(t3?.flows.first?.requires == [T3CodeIntegration.supportedCodingAgents])
     }
 
     /// Tripwires on the CLI wording and file names the app depends on.

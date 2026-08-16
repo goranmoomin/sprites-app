@@ -26,17 +26,6 @@ extension ClaudeCodeIntegration {
         )
     }
 
-    /// Removes the login from one Sprite: the inverse of the plant, plus a
-    /// sweep of the legacy credential store. Also the remedy for a
-    /// Checkpoint restore resurrecting a previously planted token.
-    public func logoutFlow() -> Flow {
-        Flow(
-            id: "claude-code-logout",
-            title: "Log out Claude Code",
-            steps: [ClaudeLogoutStep()]
-        )
-    }
-
     /// Merges the token into the env block of user-level Claude settings,
     /// which the CLI reads on every start. T3 drives Claude through the
     /// agent SDK with a pass-through environment by default, so this also
@@ -433,47 +422,6 @@ struct ClaudeLoginStep: FlowStep {
             store.save(SavedClaudeLogin(token: token, mintedAt: Date()))
             context.output("Saved the login for reuse on other Sprites\n")
         }
-    }
-}
-
-/// Unplants the token from this Sprite behind an explicit consent gate:
-/// deletes the env entry merge-preservingly and best-effort removes the
-/// legacy credential store. The token itself stays valid; the app cannot
-/// revoke it, and a saved copy stays saved.
-struct ClaudeLogoutStep: FlowStep {
-    let id = "claude-logout"
-    let title = "Log out Claude Code"
-
-    func run(in context: FlowContext) async throws {
-        let response = await context.prompt(.consent(
-            title: "Log out Claude Code?",
-            message: "This removes the login from this Sprite only. The token itself stays "
-                + "valid, and stays saved in the app if you saved it; logging out revokes "
-                + "nothing.",
-            approveTitle: "Log out"))
-        guard response == .approved else { throw FlowError.declined }
-
-        if let existing = try await context.platform.readFile(
-            on: context.sprite, path: ClaudeCodeIntegration.settingsPath),
-            var settings = (try? JSONSerialization.jsonObject(with: Data(existing.utf8)))
-                as? [String: Any],
-            var env = settings["env"] as? [String: Any],
-            env["CLAUDE_CODE_OAUTH_TOKEN"] != nil
-        {
-            env.removeValue(forKey: "CLAUDE_CODE_OAUTH_TOKEN")
-            settings["env"] = env
-            let data = try JSONSerialization.data(
-                withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
-            try await context.platform.writeFile(
-                on: context.sprite, path: ClaudeCodeIntegration.settingsPath,
-                content: String(decoding: data, as: UTF8.self))
-            context.output("Removed the token from \(ClaudeCodeIntegration.settingsPath)\n")
-        }
-        // Sprites logged in under the old interactive flow keep their
-        // credential store; sweep it so they come out clean too.
-        _ = try? await context.platform.runCapturing(
-            on: context.sprite, ["rm", "-f", ClaudeCodeIntegration.credentialsPath])
-        context.output("Logged out Claude Code on this Sprite\n")
     }
 }
 

@@ -285,7 +285,7 @@ public struct SpriteDetailView: View {
                                 Task { await model.restoreCheckpoint(id: checkpoint.id) }
                             }
                         } message: {
-                            Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
+                            Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint, and brings back any login the checkpoint captured.")
                         }
                         .confirmationDialog(
                             "Delete \(checkpoint.id)?",

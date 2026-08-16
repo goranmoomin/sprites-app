@@ -168,7 +168,7 @@ struct FlowPromptView: View {
             Section("Claude token") {
                 Text("Claude minted a login token. Save it to log in other Sprites with one tap, or use it on this Sprite only.")
                 CopyableValueRow(label: "Token", value: token, monospaced: true)
-                Text("The token is valid for about a year, stored in plain text on each Sprite that uses it, and captured by Checkpoints. The app cannot revoke it.")
+                Text("The token is valid for about a year, stored in plain text on each Sprite that uses it, and captured by Checkpoints, so a restore can bring a login back. The app cannot revoke it or log a Sprite out; deleting the Sprite is the reversal.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("Save for other Sprites") { respond(.approved) }

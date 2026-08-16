@@ -9,8 +9,7 @@ public struct ClaudeCodeIntegration: Integration {
     public let requires: [Capability] = []
 
     /// The legacy credential store `claude auth login` used to write; the
-    /// setup-token login never creates it. Logout still sweeps it so
-    /// Sprites logged in under the old flow come out clean.
+    /// setup-token login never creates it.
     public static let credentialsPath = "/home/sprite/.claude/.credentials.json"
     /// User-level Claude settings: the Heartbeat hooks and the planted
     /// login token both live here.
@@ -54,6 +53,6 @@ public struct ClaudeCodeIntegration: Integration {
     }
 
     public func flows(status: IntegrationStatus, services: [Service], metadata: SpriteMetadata?) -> [Flow] {
-        status.isReady ? [logoutFlow()] : [loginFlow()]
+        status.isReady ? [] : [loginFlow()]
     }
 }

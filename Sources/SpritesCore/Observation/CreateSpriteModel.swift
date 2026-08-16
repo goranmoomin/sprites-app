@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Creating a sprite: a suggested, editable haikunator name and one POST.
-/// The Flow playlist that follows creation is ticket 12.
+/// The Board that follows creation is the detail model on the new sprite.
 @MainActor
 @Observable
 public final class CreateSpriteModel {

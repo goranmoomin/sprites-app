@@ -143,25 +143,9 @@ public struct SpriteDetailView: View {
 
     @ViewBuilder
     private var deepSections: some View {
-        if let lines = model.integrationLines, !lines.isEmpty {
-            Section("Integrations") {
-                ForEach(lines) { line in
-                    LabeledContent(line.title) {
-                        HStack {
-                            Text(line.summary)
-                            Image(systemName: line.isReady ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(line.isReady ? Color.green : Color.secondary)
-                        }
-                    }
-                    ForEach(line.details) { detail in
-                        IntegrationDetailRow(detail: detail)
-                    }
-                }
-                ForEach(model.offeredFlows ?? [], id: \.id) { flow in
-                    Button(flow.title) {
-                        activeFlow = flow
-                    }
-                }
+        if let board = model.board {
+            BoardSections(board: board, blockedReason: model.blockedReason(for:)) { flow in
+                activeFlow = flow
             }
         }
 

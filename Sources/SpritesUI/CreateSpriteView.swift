@@ -25,8 +25,8 @@ struct CreateSpriteView: View {
         NavigationStack {
             if let createdSprite {
                 // Creation is non-transactional: the sprite already exists;
-                // what follows is just a playlist of ordinary Flows.
-                CreateSpritePlaylistView(platform: platform, sprite: createdSprite.name) {
+                // what follows is just the Board of ordinary Flows.
+                CreateSpriteBoardView(platform: platform, sprite: createdSprite.name) {
                     dismiss()
                     onFinished(createdSprite.name)
                 }

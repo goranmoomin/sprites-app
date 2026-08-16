@@ -177,7 +177,7 @@ public struct SpriteListView: View {
                 CreateSpriteView(platform: platform) { _ in
                     Task { await model.refresh() }
                 } onFinished: { name in
-                    // The playlist ends on the new sprite's detail screen.
+                    // The Board page ends on the new sprite's detail screen.
                     path.append(name)
                 }
             }

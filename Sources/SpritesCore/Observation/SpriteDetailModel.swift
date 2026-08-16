@@ -16,12 +16,42 @@ public final class SpriteDetailModel {
     public private(set) var isWaking = false
     public private(set) var lastError: Error?
 
-    /// Per-integration status lines, e.g. "Claude Code: logged in".
-    public private(set) var integrationLines: [IntegrationStatusLine]?
+    /// The Board (CONTEXT.md): every integration as one tile in Category
+    /// rows, observed status plus the Flows it currently offers. The same
+    /// Board serves the create path and the detail screen.
+    public private(set) var board: [BoardRow]?
     /// One-tap Actions contributed by integrations.
     public private(set) var actions: [SpriteAction]?
+
+    public struct BoardTile: Sendable, Identifiable {
+        public var id: String
+        public var title: String
+        public var category: Category
+        public var status: IntegrationStatus
+        /// In the integration's own order (its recommended Flow first).
+        public var flows: [Flow]
+    }
+
+    public struct BoardRow: Sendable, Identifiable {
+        public var category: Category
+        public var tiles: [BoardTile]
+        public var id: Category { category }
+    }
+
+    /// Per-integration status lines, e.g. "Claude Code: logged in", in
+    /// registry order.
+    public var integrationLines: [IntegrationStatusLine]? {
+        board?.flatMap(\.tiles).map {
+            IntegrationStatusLine(
+                id: $0.id, title: $0.title, summary: $0.status.summary,
+                isReady: $0.status.isReady, details: $0.status.details)
+        }
+    }
+
     /// Flows the injected integrations currently offer, in registry order.
-    public private(set) var offeredFlows: [Flow]?
+    public var offeredFlows: [Flow]? {
+        board?.flatMap(\.tiles).flatMap(\.flows)
+    }
 
     public struct IntegrationStatusLine: Sendable, Equatable, Identifiable {
         public var id: String
@@ -29,6 +59,18 @@ public final class SpriteDetailModel {
         public var summary: String
         public var isReady: Bool
         public var details: [IntegrationStatus.Detail]
+    }
+
+    /// The Requirement sentence a Flow would block on, judged from the
+    /// statuses already on the Board (no extra observation); nil when it
+    /// can run. FlowRun re-checks for real at start.
+    public func blockedReason(for flow: Flow) -> String? {
+        guard let tiles = board?.flatMap(\.tiles) else { return nil }
+        for requirement in flow.requires
+        where !tiles.contains(where: { requirement.anyOf.contains($0.id) && $0.status.isReady }) {
+            return Integrations.blockedSentence(for: requirement, among: integrations)
+        }
+        return nil
     }
 
     private let platform: SpritesPlatform
@@ -275,7 +317,7 @@ public final class SpriteDetailModel {
             services = try await platform.services(on: sprite)
             tasks = try await platform.listTasks(on: sprite)
             checkpoints = try await platform.checkpoints(on: sprite)
-            try await observeIntegrations()
+            await observeIntegrations()
             lastError = nil
         } catch {
             lastError = error
@@ -283,26 +325,39 @@ public final class SpriteDetailModel {
         }
     }
 
-    private func observeIntegrations() async throws {
+    private func observeIntegrations() async {
         let services = services ?? []
-        var lines: [IntegrationStatusLine] = []
+        // Every integration observed at once, results kept in registry
+        // order; one failing probe leaves the others intact.
+        let statuses = await withTaskGroup(of: (Int, IntegrationStatus).self) { group in
+            for (index, integration) in integrations.enumerated() {
+                group.addTask { [platform, sprite] in
+                    let status = (try? await integration.observeStatus(
+                        on: sprite, services: services, platform: platform))
+                        ?? IntegrationStatus(summary: "observation failed", isReady: false)
+                    return (index, status)
+                }
+            }
+            var statuses = [IntegrationStatus?](repeating: nil, count: integrations.count)
+            for await (index, status) in group { statuses[index] = status }
+            return statuses.compactMap { $0 }
+        }
+        var tiles: [BoardTile] = []
         var actions: [SpriteAction] = []
-        var flows: [Flow] = []
-        for integration in integrations {
-            let status = try await integration.observeStatus(
-                on: sprite, services: services, platform: platform)
-            lines.append(IntegrationStatusLine(
-                id: integration.id, title: integration.displayName,
-                summary: status.summary, isReady: status.isReady, details: status.details))
+        for (integration, status) in zip(integrations, statuses) {
+            tiles.append(BoardTile(
+                id: integration.id, title: integration.displayName, category: integration.category,
+                status: status,
+                flows: integration.flows(status: status, services: services, metadata: metadata)))
             actions.append(contentsOf: integration.actions(services: services, metadata: metadata))
-            flows.append(contentsOf: integration.flows(
-                status: status, services: services, metadata: metadata))
         }
         // The app's own contribution to the same list: the one-shot exec
         // sheet behind Run command.
         actions.append(SpriteAction(id: "run-command", title: "Run command", kind: .runCommand))
-        integrationLines = lines
+        board = Category.allCases.compactMap { category in
+            let rowTiles = tiles.filter { $0.category == category }
+            return rowTiles.isEmpty ? nil : BoardRow(category: category, tiles: rowTiles)
+        }
         self.actions = actions
-        offeredFlows = flows
     }
 }

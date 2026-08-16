@@ -128,12 +128,19 @@ public enum Integrations {
                 among: requirement.anyOf, on: sprite, services: [], platform: platform,
                 among: integrations) != nil
             guard !met else { continue }
-            let names = requirement.anyOf.compactMap { id in
-                integrations.first { $0.id == id }?.displayName
-            }
-            return "This needs \(names.joined(separator: " or ")) ready on this sprite. "
-                + "Run its Flow first."
+            return blockedSentence(for: requirement, among: integrations)
         }
         return nil
+    }
+
+    /// The blocked sentence for one unmet Requirement; names products,
+    /// never categories.
+    public static func blockedSentence(
+        for requirement: Requirement, among integrations: [any Integration] = Integrations.all
+    ) -> String {
+        let names = requirement.anyOf.compactMap { id in
+            integrations.first { $0.id == id }?.displayName
+        }
+        return "This needs \(names.joined(separator: " or ")) ready on this sprite. Run its Flow first."
     }
 }

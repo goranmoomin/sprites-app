@@ -81,7 +81,7 @@ public final class FlowRun {
     }
 
     /// Awaits the next prompt, or nil when the flow finishes without one.
-    /// Test seams and playlist UIs use this to drive the flow.
+    /// Test seams use this to drive the flow.
     public func nextPrompt() async -> FlowPrompt? {
         if let currentPrompt { return currentPrompt }
         if isFinished { return nil }

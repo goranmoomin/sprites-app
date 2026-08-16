@@ -16,7 +16,7 @@ The credential plus installed binary that a coding-agent Integration manages on 
 _Avoid_: Provider, agent service
 
 **Saved login**:
-The one Claude Code credential the app keeps: minted once on a Sprite during the login Flow, then planted into later Sprites to log their Agent in without a browser. App-scoped (the deliberate exception to Agent's Sprite-scoping); forgetting it removes it from the app only, revoking nothing and unplanting nothing.
+A credential the app keeps for an Integration whose credential does not rotate: obtained once during the login Flow (Claude Code and GitHub mint it on a Sprite; Tailscale takes a pasted auth key), then planted into later Sprites silently. App-scoped (the deliberate exception to Agent's Sprite-scoping), at most one per Integration; forgetting it removes it from the app only, revoking nothing and unplanting nothing. T3 Connect has none: its credential rotates on use, so each Sprite authorizes itself.
 _Avoid_: Account, reuse Flow
 
 **Service**:
@@ -27,22 +27,30 @@ _Avoid_: Daemon, process
 A process the app runs on a Sprite, with platform-assigned identity that outlives any one connection. Dropping the connection neither pauses nor ends it: the app re-attaches by ID or kills it explicitly.
 
 **Integration**:
-First-party support for one capability of a third-party product on a Sprite. Declares the Capabilities it provides and requires; observes its own status, recognizes Services as its instances by command match (whoever created them), offers Flows, and contributes Actions. One integration per capability, not per product: Claude Code (coding agent) and Claude Remote Control (control plane) are separate.
+First-party support for one capability of a third-party product on a Sprite. Declares its Category; observes its own status, recognizes Services as its instances by command match (whoever created them), offers Flows, and contributes Actions. One integration per capability, not per product: Claude Code (coding agent) and Claude Remote Control (control plane) are separate.
 _Avoid_: Template, preset, service template
 
-**Capability**:
-What an Integration provides to or requires from a Sprite; a closed set (coding agent, control plane). A requirement is met when some integration providing that capability is observed ready.
-_Avoid_: Role
+**Category**:
+The Board row an Integration declares itself into: coding agent, control plane, or other. Grouping only; carries no requirement semantics.
+_Avoid_: Capability, role
 
 **Coding agent**:
-Integration category that manages an Agent's login (Claude Code, Codex, Gemini CLI). Capability-derived: an integration is a coding agent because it provides the coding-agent capability.
+Category of Integrations that manage an Agent's login (Claude Code, Codex, Gemini CLI).
 
 **Control plane**:
-Integration category that runs a Service exposing the Sprite to a client app (T3 Code, Claude Remote Control). Capability-derived: provides the control-plane capability, and may require the coding-agent one.
+Category of Integrations that run a Service exposing the Sprite to a client app (T3 Code, Claude Remote Control).
+
+**Requirement**:
+What a Flow needs on the Sprite before it runs: a set of Integrations, any one of which observed ready satisfies it; a Flow needs all of its Requirements. Names products, never categories: T3 Code's Flows require Claude Code or Codex, tailnet pairing requires Tailscale.
+_Avoid_: Capability, dependency, prerequisite
 
 **Flow**:
-A guided, possibly interactive, multi-step operation an Integration offers on a Sprite (log in to Claude, set up t3 serve, pair with T3 Code). Steps prefer non-interactive exec; interactive steps drive a PTY headlessly behind native UI. Flows are always launchable from the detail screen; the create-sprite wizard is only a name plus a skippable playlist of ordinary Flows.
+A guided, possibly interactive, multi-step operation an Integration offers on a Sprite (log in to Claude, set up t3 serve, pair with T3 Code). Steps prefer non-interactive exec; interactive steps drive a PTY headlessly behind native UI. A Flow is a flat list of steps with no branches: alternatives are peer Flows (T3 Code offers pairing over the public URL, pairing over the tailnet, and T3 Connect). Flows are always launched from the Board; the create-sprite wizard is only a name plus the Board.
 _Avoid_: Wizard, onboarding, operation
+
+**Board**:
+Every Integration on a Sprite as one tile each, in Category rows, showing its observed status and launching its offered Flows (a chooser when there are several). The create-sprite wizard's second page and the detail screen's integrations section are the same Board; nothing about it is ordered or remembered.
+_Avoid_: Playlist, checklist
 
 **Action**:
 A one-tap operation on the sprite detail screen (Open in T3 Code, Run command, SSH).
@@ -70,7 +78,11 @@ A Service not recognized by any Integration. Gets generic controls only.
 A Sprite's URL auth setting (private / public), shown on the detail screen. Making a Sprite public is always an explicit consent step inside a Flow, never implicit.
 
 **Pairing**:
-T3 integration term only: the one-time credential created on the Sprite that the official T3 Code app uses to connect. Single-use and short-lived: opening the pairing URL redeems it. Observed from the Sprite; re-created via the "Pair again" Flow. Other integrations name their own equivalents when they arrive.
+T3 integration term only: the one-time credential created on the Sprite that the official T3 Code app uses to connect. Single-use and short-lived: opening the pairing URL redeems it. Observed from the Sprite; re-created via the "Pair again" Flow. T3 Connect mints one invisibly (2-minute TTL, never displayed) when the user taps Connect in the T3 Code app. Other integrations name their own equivalents when they arrive.
+
+**T3 Connect**:
+T3's account-authorized managed tunnel: the Sprite registers with T3's relay under the user's T3 account and appears in the T3 Code app's list under its Sprite name, reached by tapping Connect there. No public URL and no visible Pairing. Each Sprite logs in through the CLI itself; there is no Saved login. A proper noun: "connect" as a common noun stays avoided.
+_Avoid_: Connect, cloud connect, relay
 
 **Checkpoint**:
 A deliberate snapshot of a Sprite's writable filesystem, restorable later on the same Sprite only. Restore is destructive and captures disk, not running processes. The platform also takes automatic checkpoints (restore-only, pruned by the platform); deleting a Sprite destroys all its checkpoints.

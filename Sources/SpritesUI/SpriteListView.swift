@@ -59,27 +59,34 @@ public struct SpriteListView: View {
                             SpriteRow(sprite: sprite, isDeleting: isDeleting)
                         }
                             .disabled(isDeleting)
-                            .rowAnchor(sprite.name)
                             .swipeActions {
                                 if !isDeleting {
                                     // Not role: .destructive: that plays the
                                     // row-removal animation on tap, before the
-                                    // confirmation is even answered.
+                                    // confirmation is even answered, and the
+                                    // rebuilt cell takes the dialog with it.
                                     Button("Delete") {
                                         spriteToDelete = sprite.name
                                     }
                                     .tint(.red)
                                 }
                             }
-                    }
-                    .rowAnchoredConfirmation(
-                        selection: $spriteToDelete,
-                        title: { "Delete \($0)?" },
-                        message: "This permanently destroys its filesystem, services, and checkpoints."
-                    ) { sprite in
-                        Button("Delete Sprite", role: .destructive) {
-                            model.delete(sprite)
-                        }
+                            // Anchored to the row: iOS 26 presents this as a
+                            // popover pointing at the source view.
+                            .confirmationDialog(
+                                "Delete \(sprite.name)?",
+                                isPresented: Binding(
+                                    get: { spriteToDelete == sprite.name },
+                                    set: { if !$0 { spriteToDelete = nil } }
+                                ),
+                                titleVisibility: .visible
+                            ) {
+                                Button("Delete Sprite", role: .destructive) {
+                                    model.delete(sprite.name)
+                                }
+                            } message: {
+                                Text("This permanently destroys its filesystem, services, and checkpoints.")
+                            }
                     }
                     .refreshable { await model.refresh() }
                 }

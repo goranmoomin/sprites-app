@@ -77,24 +77,6 @@ public struct SpriteDetailView: View {
                 }
             }
         }
-        .rowAnchoredConfirmation(
-            selection: $checkpointToRestore,
-            title: { "Restore \($0)?" },
-            message: "Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint."
-        ) { id in
-            Button("Restore Checkpoint", role: .destructive) {
-                Task { await model.restoreCheckpoint(id: id) }
-            }
-        }
-        .rowAnchoredConfirmation(
-            selection: $checkpointToDelete,
-            title: { "Delete \($0)?" },
-            message: "This permanently removes the checkpoint. It cannot be restored afterwards."
-        ) { id in
-            Button("Delete Checkpoint", role: .destructive) {
-                Task { await model.deleteCheckpoint(id: id) }
-            }
-        }
         .navigationTitle(model.sprite)
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.refresh() }
@@ -274,7 +256,6 @@ public struct SpriteDetailView: View {
                 ForEach(model.manualCheckpoints) { checkpoint in
                     let operationRunning = model.checkpointActivity?.phase == .running
                     LabeledContent(checkpoint.id, value: checkpoint.comment ?? "")
-                        .rowAnchor(checkpoint.id)
                         .swipeActions {
                             if !operationRunning {
                                 Button("Restore") {
@@ -289,6 +270,36 @@ public struct SpriteDetailView: View {
                                 }
                                 .tint(.red)
                             }
+                        }
+                        // Anchored to the row: iOS 26 presents these as
+                        // popovers pointing at the source view.
+                        .confirmationDialog(
+                            "Restore \(checkpoint.id)?",
+                            isPresented: Binding(
+                                get: { checkpointToRestore == checkpoint.id },
+                                set: { if !$0 { checkpointToRestore = nil } }
+                            ),
+                            titleVisibility: .visible
+                        ) {
+                            Button("Restore Checkpoint", role: .destructive) {
+                                Task { await model.restoreCheckpoint(id: checkpoint.id) }
+                            }
+                        } message: {
+                            Text("Restore is destructive: it rolls back agent logins, services, and pairing made after this checkpoint.")
+                        }
+                        .confirmationDialog(
+                            "Delete \(checkpoint.id)?",
+                            isPresented: Binding(
+                                get: { checkpointToDelete == checkpoint.id },
+                                set: { if !$0 { checkpointToDelete = nil } }
+                            ),
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete Checkpoint", role: .destructive) {
+                                Task { await model.deleteCheckpoint(id: checkpoint.id) }
+                            }
+                        } message: {
+                            Text("This permanently removes the checkpoint. It cannot be restored afterwards.")
                         }
                 }
             }

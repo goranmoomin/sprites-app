@@ -18,3 +18,7 @@
 ## Answer
 
 Done in fae8701. `GitHubIntegration`/`GitHubLoginFlow`, `.openURLAndShowCode`, `SavedGitHubLogin`, plant order and chmod, `setup-git`, guarded identity, ungated verify with dead-token fall-through, `hosts.yml` `oauth_token:` observation with the account as a detail (scopes are not on the Sprite and are not shown), tripwires, live rig `InteractiveGitHubTests`, findings note.
+
+## Comments
+
+2026-08-16: The mint as shipped did not complete on device. The non-TTY exec died with the WebSocket when Safari suspended the app (only TTY sessions outlive their socket; see ADR 0005), so gh was killed mid-poll and `gh auth token` found nothing. The mint now runs in a headless PTY with `GH_PROMPT_DISABLED=1 NO_COLOR=1 TERM=xterm-256color`, the step answers gh's terminal probe (OSC 11 and cursor position) itself, and the existing reattach-by-identity path carries the hop. "Never a PTY" above is superseded; the rest of the checklist stands. Findings entry updated under "The mint".

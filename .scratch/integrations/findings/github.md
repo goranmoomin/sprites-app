@@ -16,10 +16,10 @@ makes the Claude setup token safe to reuse.
 
 Simpler than the Claude equivalent in two ways:
 
-- Minting needs no PTY. `gh auth login --web` under a plain non-TTY exec is
-  fully non-interactive. No Ink repaint parsing, no Enter-as-a-separate-
-  keystroke trick, no reattach-by-identity dance - `ClaudeLoginStep` needs
-  all three.
+- Minting needs no interaction. `gh auth login --web` is fully
+  non-interactive: no Ink repaint parsing, no Enter-as-a-separate-keystroke
+  trick. It still runs in a PTY (see "The mint") because only TTY sessions
+  survive the Safari hop, so the reattach-by-identity dance stays.
 - Capturing the credential is a command, not a screen-scrape: `gh auth
   token` prints it on stdout, exit 0.
 
@@ -37,7 +37,9 @@ See "Why the mint needs a human".
 
 ## The mint
 
-Run as a plain non-TTY exec with stdin at `/dev/null`:
+The command (run in a PTY with `GH_PROMPT_DISABLED=1 NO_COLOR=1
+TERM=xterm-256color`; the plain non-TTY output below is identical apart from
+CRLF, and was the form first observed):
 
 ```
 gh auth login --hostname github.com --git-protocol https --web
@@ -103,18 +105,34 @@ state, and again twice on 2026-08-12 by letting real codes expire.
 "the user never finished", and it means a flow can simply wait for the exec
 to exit rather than run its own timer.
 
-Do not use a PTY. Under one, gh first asks
+The mint nevertheless has to run in a PTY, because only TTY exec sessions
+survive a WebSocket drop (probed 2026-08-16 on `probe-ghlogin`: the same
+`sh` loop under a non-TTY exec died at the drop and vanished from
+`GET /exec`; under `tty=true` it kept running and stayed listed
+`is_active`). The device flow always spans the Safari hop, iOS suspends
+the app and kills the socket, and a non-TTY `gh auth login` was observed
+killed mid-poll with `~/.config/gh` never created; the reattach by ID
+then 404s. That is the failure the first implementation shipped with.
+
+Under a PTY, gh first asks
 
 ```
 ? Authenticate Git with your GitHub credentials? (Y/n)
 ```
 
-from a prompter that queries the terminal (`ESC]11;?`, `ESC[999;999f
-ESC[6n`) and will not accept input until something answers. It hung
-indefinitely under `sprite exec --tty` and under `script`; only a real
-emulator (`tmux`) got past it. `GH_PROMPT_DISABLED=1` suppresses the prompt
-and restores the non-TTY behaviour, as an escape hatch if a PTY is ever
-forced.
+from a prompter that queries the terminal and will not accept input until
+something answers. `GH_PROMPT_DISABLED=1` removes the prompt, but gh still
+probes the terminal before printing anything: `ESC]11;?ESC\` (OSC 11
+background colour) followed by `ESC[6n` (cursor position), and it blocks
+until both are answered. Without `TERM` it repeats the probe in a tight
+loop (364 KB/s observed); with `TERM=xterm-256color`, 40x120, it sends the
+probe once or twice and waits. Answering as a terminal would
+(`ESC]11;rgb:0000/0000/0000ESC\` and `ESC[1;1R`) gets it past the probe:
+it then prints the same two lines as the non-TTY path, CRLF-terminated,
+and polls as before. `NO_COLOR=1` strips the ANSI colouring from those
+lines so the same anchors parse. Verified live: after the probe was
+answered and the socket aborted, the gh session stayed listed and alive,
+and attaching to it by ID succeeded.
 
 ## Why the mint needs a human
 
@@ -337,10 +355,10 @@ token in plaintext and a restore resurrects it. Three consequences:
    the checkpoint copy, and an argument for the logout flow zeroing the file
    rather than merely deactivating.
 
-There is nothing to sweep from `/tmp/xdg-open.log`: the non-TTY login never
-invokes `sprite-browser` at all. Only the interactive TTY path does, after
-an Enter press, and even then the URL it logs is the bare
-`https://github.com/login/device` with no code in it.
+There is nothing to sweep from `/tmp/xdg-open.log`: with prompts disabled
+(and under a non-TTY exec) the login never invokes `sprite-browser` at all.
+Only the interactive TTY path does, after an Enter press, and even then the
+URL it logs is the bare `https://github.com/login/device` with no code in it.
 
 ## CONFIRMED against a real login (2026-08-12)
 
@@ -434,7 +452,9 @@ and removed from both Sprites afterwards, verified clean.
 ## Implemented (integrations ticket 06, 2026-08-16)
 
 `GitHubIntegration` plus `GitHubLoginFlow`, shaped as recommended above:
-non-TTY device flow behind the new `.openURLAndShowCode` prompt, own
+device flow behind the new `.openURLAndShowCode` prompt (first shipped as
+a non-TTY exec, which died with the socket during the Safari hop; moved to
+a PTY with the terminal probe answered by the step, see "The mint"), own
 `github-login` keep-alive task, stale sessions swept by the argv suffix,
 capture through `gh auth token` plus `gh api user`, save-with-consent as
 `SavedGitHubLogin`, plant as `config.yml` then `hosts.yml` then `chmod 600`

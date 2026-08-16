@@ -57,9 +57,16 @@ extension GitHubIntegration {
     /// gh's update notifier prints to stderr once a day and would pollute
     /// parsed output.
     static let ghEnv = ["GH_NO_UPDATE_NOTIFIER": "1"]
+
+    /// The mint's PTY environment: gh's interactive prompts off (it would
+    /// otherwise ask about git credentials), colour off so the parsed
+    /// lines are bare text, and a TERM, without which the sprite PTY
+    /// starts blank and gh loops on its terminal probe (observed live).
+    static let mintEnv = ghEnv.merging(
+        ["GH_PROMPT_DISABLED": "1", "NO_COLOR": "1", "TERM": "xterm-256color"]) { $1 }
 }
 
-/// Anchors into gh's device-flow output (all on stderr, observed live):
+/// Anchors into gh's device-flow output (stderr, or the PTY; observed live):
 ///
 ///     ! First copy your one-time code: 4261-1EFE
 ///     Open this URL to continue in your web browser: https://github.com/login/device
@@ -90,15 +97,35 @@ public enum GitHubOutputParser {
         let value = rest.trimmingCharacters(in: .whitespaces)
         return value.isEmpty ? nil : value
     }
+
+    /// Under a PTY gh probes the terminal before printing anything: an OSC
+    /// 11 background-colour query and a cursor position report (observed
+    /// live), and it blocks until both are answered.
+    public static let backgroundQuery = "\u{1b}]11;?"
+    public static let cursorQuery = "\u{1b}[6n"
+
+    /// What a real terminal would type back for a chunk of output, or nil.
+    public static func terminalAnswer(to raw: String) -> Data? {
+        var answer = ""
+        if raw.contains(backgroundQuery) { answer += "\u{1b}]11;rgb:0000/0000/0000\u{1b}\\" }
+        if raw.contains(cursorQuery) { answer += "\u{1b}[1;1R" }
+        return answer.isEmpty ? nil : Data(answer.utf8)
+    }
 }
 
 /// The branching login: plants the saved login silently when one exists
-/// (no browser); otherwise runs `gh auth login --web` as a plain non-TTY
-/// exec, shows the one-time code and URL, and waits for gh to exit. gh
-/// writes `hosts.yml` itself on success, so `gh auth token` is the arbiter
-/// of the outcome, and the token is captured right then or never. The mint
-/// cannot run unattended: GitHub demands a scroll-to-bottom and a second
-/// factor (observed live), which the copy warns about.
+/// (no browser); otherwise runs `gh auth login --web` in a headless PTY,
+/// shows the one-time code and URL, and waits for gh to exit. gh writes
+/// `hosts.yml` itself on success, so `gh auth token` is the arbiter of the
+/// outcome, and the token is captured right then or never. The mint cannot
+/// run unattended: GitHub demands a scroll-to-bottom and a second factor
+/// (observed live), which the copy warns about.
+///
+/// The PTY is for survival, not interaction: iOS suspends the app and
+/// kills the WebSocket during the Safari hop, and only a TTY session
+/// outlives its socket (a non-TTY gh is killed mid-poll, observed live).
+/// The step answers gh's terminal probe itself and reattaches by identity
+/// only when the socket actually died.
 struct GitHubLoginStep: FlowStep {
     let id = "github-login"
     let title = "Log in to GitHub"
@@ -191,11 +218,11 @@ struct GitHubLoginStep: FlowStep {
                 try? await context.platform.killExecSession(on: context.sprite, sessionID: stale.id)
             }
         }
-        // Never a PTY: under one gh prompts through a terminal query that
-        // hangs headlessly (observed live). Stdin closed, as /dev/null.
         let session = try await context.platform.exec(
-            on: context.sprite, command: ExecCommand(GitHubIntegration.loginArgv, env: GitHubIntegration.ghEnv))
-        try await session.sendEOF()
+            on: context.sprite,
+            command: ExecCommand(
+                GitHubIntegration.loginArgv, tty: true, env: GitHubIntegration.mintEnv,
+                rows: 40, cols: 120))
         let sessionID = await session.sessionID
         do {
             try await drive(session, sessionID: sessionID, in: context)
@@ -215,7 +242,8 @@ struct GitHubLoginStep: FlowStep {
         var seen = ""
         var code: String?
         var url: URL?
-        // Phase 1: the two stderr lines, printed at once before gh blocks.
+        // Phase 1: answer the terminal probe, then the two lines, printed
+        // at once before gh blocks.
         while code == nil || url == nil {
             guard let event = try await reader.next(within: .seconds(60)) else {
                 throw FlowError.failed("gh auth login ended before printing a code. Retry to start over.")
@@ -223,6 +251,9 @@ struct GitHubLoginStep: FlowStep {
             switch event {
             case .stdout(let data), .stderr(let data):
                 let text = String(decoding: data, as: UTF8.self)
+                if let answer = GitHubOutputParser.terminalAnswer(to: text) {
+                    try await session.send(answer)
+                }
                 seen += text
                 context.output(text)
             case .exit(let status):

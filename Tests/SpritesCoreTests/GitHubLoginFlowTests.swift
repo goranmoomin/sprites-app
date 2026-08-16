@@ -17,21 +17,44 @@ struct GitHubLoginFlowTests {
         GitHubIntegration(loginStore: store).loginFlow()
     }
 
+    /// gh's terminal probe under a PTY (observed live): the OSC 11
+    /// background query and a cursor position report, and nothing prints
+    /// until both are answered.
+    nonisolated static let terminalQuery = "\u{1b}]11;?\u{1b}\\\u{1b}[6n"
+
     /// The gh surface the flows touch, answering from the fake's files the
     /// way the real CLI answers from disk: `auth login --web` prints its
-    /// two stderr lines, then blocks until the "user" approves (the script
+    /// two lines (under a PTY only after its terminal queries are answered,
+    /// with CRLF), then blocks until the "user" approves (the script
     /// finishes when told to), `auth token` reads hosts.yml, `api user`
     /// answers for a token that is present and not marked dead, `auth
     /// setup-git` appends the credential blocks, and `git config` reads and
     /// writes the fake gitconfig.
     nonisolated static func scriptGh(
         _ fake: FakeSpritesPlatform, sprite: String = sprite, approve: Bool = true,
-        deadToken: String? = nil
+        deadToken: String? = nil, dropDuringHop: Bool = false
     ) async {
         await fake.setFile(on: sprite, path: gitconfigPath, content: baseGitconfig)
         await fake.scriptExec(where: { $0.argv.starts(with: ["gh", "auth", "login"]) }) { command, io in
-            io.stderr("\n! First copy your one-time code: 4261-1EFE\n"
-                + "Open this URL to continue in your web browser: https://github.com/login/device\n")
+            if command.tty {
+                io.stdout(terminalQuery)
+                var answers = ""
+                while !(answers.contains("\u{1b}]11;rgb:") && answers.contains("\u{1b}[1;1R")) {
+                    guard let chunk = await io.read() else {
+                        io.exit(1)
+                        return
+                    }
+                    answers += chunk
+                }
+                io.stdout("\r\n! First copy your one-time code: 4261-1EFE\r\n"
+                    + "Open this URL to continue in your web browser: https://github.com/login/device\r\n")
+            } else {
+                io.stderr("\n! First copy your one-time code: 4261-1EFE\n"
+                    + "Open this URL to continue in your web browser: https://github.com/login/device\n")
+            }
+            if dropDuringHop {
+                io.dropConnection()  // the app got suspended in Safari; the socket died
+            }
             try? await Task.sleep(for: .milliseconds(50))
             if approve {
                 await fake.setFile(
@@ -158,10 +181,14 @@ struct GitHubLoginFlowTests {
         }
         #expect(url == URL(string: "https://github.com/login/device"))
         #expect(code == "4261-1EFE")
-        // A plain non-TTY exec with the notifier silenced, never a PTY.
+        // A PTY (the only kind of session that survives the Safari hop),
+        // with prompts and colour off and the notifier silenced.
         let login = try #require(await fake.execLog.first { $0.command.argv.contains("login") })
-        #expect(login.command.tty == false)
+        #expect(login.command.tty == true)
         #expect(login.command.env["GH_NO_UPDATE_NOTIFIER"] == "1")
+        #expect(login.command.env["GH_PROMPT_DISABLED"] == "1")
+        #expect(login.command.env["NO_COLOR"] == "1")
+        #expect(login.command.env["TERM"] == "xterm-256color")
         #expect(login.command.argv.suffix(2) == ["--scopes", "workflow"])
         // git wiring: the helper blocks and the user's own identity.
         let gitconfig = try #require(await fake.fileContents(on: Self.sprite, path: Self.gitconfigPath))
@@ -181,6 +208,28 @@ struct GitHubLoginFlowTests {
         let line = detail.integrationLines?.first { $0.title == "GitHub" }
         #expect(line?.summary == "logged in")
         #expect(line?.details == [IntegrationStatus.Detail("Account", "goranmoomin")])
+    }
+
+    /// The observed iOS failure: leaving for Safari suspends the app and
+    /// kills the WebSocket while gh polls. The PTY survives server-side;
+    /// the step reattaches by identity and completes.
+    @Test func socketDropDuringTheHopReattachesAndCompletes() async throws {
+        let fake = FakeSpritesPlatform()
+        await fake.addSprite(name: Self.sprite, status: .running)
+        await Self.scriptGh(fake, dropDuringHop: true)
+        let store = InMemorySavedLoginStore()
+        let run = FlowRun(flow: Self.loginFlow(store: store), platform: fake, sprite: Self.sprite)
+
+        let responder = happyResponder(run, fake: fake)
+        await run.start()
+        _ = await responder.value
+
+        #expect(run.phase == .succeeded, Comment(rawValue: run.failureMessage ?? ""))
+        #expect(await fake.attachLog.count == 1)
+        #expect(store.load(SavedGitHubLogin.self, for: GitHubIntegration.id)?.token == Self.token)
+        // The keep-alive is released and the login session ended naturally.
+        #expect(try await fake.listTasks(on: Self.sprite).isEmpty)
+        #expect(try await fake.listExecSessions(on: Self.sprite).isEmpty)
     }
 
     @Test func savedLoginPlantsSilentlyAndVerifiesForFree() async throws {

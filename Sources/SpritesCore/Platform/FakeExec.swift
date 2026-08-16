@@ -22,9 +22,9 @@ public final class FakeExecIO: Sendable {
         record.exit(code)
     }
 
-    /// Severs the client's socket without ending the session, like iOS
-    /// suspension killing the WebSocket: the stream finishes without an
-    /// exit, sends throw, and the scripted process lives on.
+    /// Severs the client's socket like iOS suspension killing the
+    /// WebSocket: the stream finishes without an exit and sends throw. A
+    /// TTY script lives on; a non-TTY one is killed, as on the platform.
     public func dropConnection() {
         record.dropClient()
     }
@@ -47,6 +47,7 @@ final class FakeExecRecord: Sendable {
     let sprite: String
     /// Resolved-path rendering, matching the live list endpoint.
     let command: String
+    let tty: Bool
     let reader: FakeExecInputReader
 
     private let inputContinuation: AsyncStream<Data>.Continuation
@@ -59,10 +60,11 @@ final class FakeExecRecord: Sendable {
 
     private let state = Mutex<State>(State())
 
-    init(id: String, sprite: String, argv: [String]) {
+    init(id: String, sprite: String, argv: [String], tty: Bool) {
         self.id = id
         self.sprite = sprite
         self.command = "/usr/bin/" + argv.joined(separator: " ")
+        self.tty = tty
         let (input, inputContinuation) = AsyncStream.makeStream(of: Data.self)
         self.inputContinuation = inputContinuation
         self.reader = FakeExecInputReader(input)
@@ -108,6 +110,7 @@ final class FakeExecRecord: Sendable {
             return state.client
         }
         client?.sever()
+        if !tty { kill() }
     }
 
     /// Detach one handle (the app closed its socket); the session lives on.
@@ -120,9 +123,8 @@ final class FakeExecRecord: Sendable {
 
     /// A new client socket; the scrollback replays first, as one stdout
     /// chunk before any live output (mirrors the server). A record whose
-    /// script already exited settles the client immediately: without this,
-    /// a fast script racing ahead of the first client would strand it with
-    /// a never-finishing stream.
+    /// script already exited settles the client immediately rather than
+    /// stranding it with a never-finishing stream.
     func makeClient() -> FakeExecSession {
         let session = FakeExecSession(record: self)
         var previous: FakeExecSession?

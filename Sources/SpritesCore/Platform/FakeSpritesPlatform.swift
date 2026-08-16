@@ -352,18 +352,21 @@ public actor FakeSpritesPlatform: SpritesPlatform {
     public func exec(on sprite: String, command: ExecCommand) async throws -> any ExecSession {
         _ = try deepTouch(sprite)
         execLog.append((sprite, command))
-        let record = FakeExecRecord(id: String(nextExecSessionID), sprite: sprite, argv: command.argv)
+        let record = FakeExecRecord(id: String(nextExecSessionID), sprite: sprite, argv: command.argv, tty: command.tty)
         nextExecSessionID += 1
         execRecords[record.id] = record
         execRecordOrder.append(record.id)
         let io = FakeExecIO(record: record)
+        // The client attaches before the script starts, so a script that
+        // drops the connection cannot race ahead of the socket it drops.
+        let session = record.makeClient()
         if let script = execScripts.first(where: { $0.matches(command) }) {
             Task { await script.script(command, io) }
         } else {
             io.stderr("fake platform: no scripted dialogue for \(command.argv)\n")
             io.exit(127)
         }
-        return record.makeClient()
+        return session
     }
 
     public func attachExec(on sprite: String, sessionID: String) async throws -> any ExecSession {

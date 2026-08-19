@@ -21,8 +21,10 @@ is safe to fan out precisely because nothing rotates.
 
 So there is no saved login for T3 Connect, and no plant. Each Sprite
 authorizes for itself, through the CLI's own `t3 connect login --headless`,
-which is cheap to drive: no PTY, one open-URL-and-enter-code prompt, and it
-maps onto a `FlowPrompt` case that already exists.
+which is cheap to drive: one open-URL-and-enter-code prompt, and it maps
+onto a `FlowPrompt` case that already exists. It needs no interaction beyond
+that code, but it does need a PTY to survive the browser hop (see "The
+shipping design").
 
 A cleverer design was worked out and set aside: the app could run the OAuth
 authorization itself in a web view and plant the result, getting each Sprite
@@ -38,7 +40,9 @@ leave the absence looking like an omission.
 
 ## The shipping design: per-Sprite login through the CLI
 
-`t3 connect login --headless` in a plain non-TTY exec:
+`t3 connect login --headless` (first observed under a plain non-TTY exec,
+which is where the transcript below comes from; it now runs in a PTY, see
+"Why the login needs a PTY"):
 
 ```
 T3 Connect
@@ -52,9 +56,9 @@ After signing in, return here and enter the code shown in your browser.
 ```
 
 It reads the pasted code from stdin and exits 0 with `Signed in as
-<identity>`. No PTY is needed - stdin was an ordinary FIFO held open across
-the browser hop. It maps onto the existing `FlowPrompt.openURLAndEnterCode`
-with no new case.
+<identity>`. Nothing about the dialogue needs a terminal - stdin was an
+ordinary FIFO held open across the browser hop - and it maps onto the
+existing `FlowPrompt.openURLAndEnterCode` with no new case.
 
 `--headless` is mandatory. The path selection is a pure
 `SSH_CONNECTION`/`SSH_TTY` sniff, and neither is set under our exec, so the
@@ -90,6 +94,79 @@ Cost per Sprite: three to four interactions. Open the URL, sign in or land
 already-signed-in, tap Copy, and get the code back into the app. That is the
 price of not taking the set-aside design, and it is a real one, so it should
 be visible in the flow's copy rather than discovered.
+
+## Why the login needs a PTY
+
+Not for the dialogue, which works fine over a pipe, but for survival. The
+login always spans the browser hop, iOS suspends the app and kills the
+WebSocket, and only a TTY exec session outlives its socket - a non-TTY one
+is killed with it (ADR 0005, probed for the GitHub login on 2026-08-16).
+The first implementation ran a plain non-TTY exec and failed on device in
+two ways, both observed 2026-08-17:
+
+- The usual one: the session was gone when the code came back, the reattach
+  404'd, and the surface showed the bare `notFound`.
+- The subtler one, when the session did outlive the drop: `attachExec` is
+  TTY-framed by construction, so the code went over as raw bytes without the
+  stdin stream-ID prefix a non-TTY session's protocol requires. The relay
+  never routed it to stdin, the CLI sat at `? Authorization code >`, and the
+  read timed out. The duplicated banner in that transcript is the attach's
+  scrollback replay, which is the tell that the attach itself succeeded.
+
+Under a PTY the CLI needs `TERM` set (the sprite PTY starts blank), and the
+code goes in as keystrokes: the prompt is Effect's `Prompt.text`
+(`apps/server/src/cli/connect.ts:82`), which reads input as key events, so
+Enter is sent as its own later keystroke rather than a `\r` riding along in
+the pasted chunk - the hazard already observed with claude's Ink prompt.
+Nothing here changes the flow selection: `--headless` is explicit and the
+path sniff reads only `SSH_CONNECTION`/`SSH_TTY`, never `isatty`.
+
+Three consequences of the PTY that are easy to get wrong:
+
+- The CLI colours its output, so both anchors (the URL line and `Signed in
+  as`) must read the visible text, not the raw bytes.
+- The stale-session sweep matches the arguments only, never the whole argv:
+  the session list reports a resolved path, and `t3` is a launcher symlink,
+  so the path we exec is not the path that comes back.
+- The outcome cannot be read off the exit status, because the socket can die
+  after the code goes in. `cloud-cli-oauth-token.bin` is the arbiter, and
+  when no exit was seen it gets a short grace to appear: the code exchange
+  outlives our socket.
+
+## The relay client, and why link is interactive too
+
+Observed live 2026-08-17, and not present in the 2026-08-11 probe: the first
+managed `t3 connect link` on a machine asks
+
+```
+? The T3 relay client is required for T3 Connect. Download and install version 2026.5.2? › (y/N)
+```
+
+The relay client is cloudflared, and `link` acquires it before anything else
+(`apps/server/src/cli/connect.ts:466-484`, `acquireRelayClientForLink`). The
+prompt is an Effect `Prompt.confirm` with `initial: false`, so under a plain
+exec it cannot be answered and the CLI cancels with status 130. There is no
+`--yes` on `link`, and the only way past the ask is a relay client that
+already resolves. (An unsupported platform skips the confirm, but only to
+fail in `installWithProgress` with `unsupported_platform`,
+`relayClient.ts:367-372`: not a silent path, just a different failure.)
+
+`resolve` (`packages/shared/src/relayClient.ts:224-260`) takes the first of:
+`T3CODE_CLOUDFLARED_PATH` if it points at an executable; the managed path
+`<baseDir>/tools/cloudflared/<version>/<platform>-<arch>/cloudflared`; a
+`cloudflared` on `PATH`. So the ask happens once per Sprite and per
+cloudflared version, and a Sprite that has one from anywhere is never asked.
+
+Consequences for the Flow. `link` runs in a PTY like the login, and the step
+answers the confirm itself, matching the anchor against everything seen so
+far because a PTY read can split the line anywhere; the consent copy now
+names the download ("Linking downloads Cloudflare's connector onto the Sprite
+the first time"). The exit status cannot be trusted here either: refusing the
+install prints "T3 Connect setup cancelled" and still exits 0, so
+`cloud-cli-desired-link.bin` is the arbiter of whether the link was recorded.
+And because the download runs for as long as it runs, the step holds its own
+keep-alive task and sweeps abandoned link PTYs by argument suffix: an
+abandoned one holds the CLI's install lock.
 
 ## The credential
 
@@ -609,8 +686,13 @@ The shipping design above, as `T3ConnectFlow` on the existing T3 Code
 integration: `t3-setup-connect`, first in T3's chooser, reusing the install
 and Service steps of `t3-setup`; a consent naming the tunnel, the account,
 what transits the relay and the per-Sprite cost; `t3 connect login
---headless` as a non-TTY exec with the code written to stdin (reattach by
-identity once if the socket died during the hop); `t3 connect link`, a
+--headless` in a headless PTY with the code typed in (first shipped as a
+non-TTY exec, which lost its process to every browser hop, see "Why the
+login needs a PTY"), pinned by a 12-minute `t3-connect-login` keep-alive
+task (past the code's 10-minute Clerk life), stale sessions swept by
+argument suffix, reattach by identity if the socket died, and
+`cloud-cli-oauth-token.bin` as the arbiter of the outcome; `t3 connect
+link`, a
 Service stop/start, and a poll for `cloud-linked-user-id.bin` (default 2s
 interval, 3 minute budget). Managed only. Observation adds one `T3 Connect`
 detail from a single presence exec over the three files: `authorized`,
